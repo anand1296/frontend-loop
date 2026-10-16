@@ -12,7 +12,8 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
  *
  * One serial story, because each step builds on the previous one's data.
  */
-test.describe.configure({ mode: 'serial' });
+// Serial and never retried: each step builds on the previous one's data, so a retry would run against a changed database.
+test.describe.configure({ mode: 'serial', retries: 0, timeout: 90_000 });
 
 const OWNER = 'anand1296';
 
@@ -54,6 +55,7 @@ test('owner signs in and manages content live', async ({ browser }) => {
   await side.getByRole('button', { name: /Admin/ }).click();
   await page.getByRole('tab', { name: 'Content' }).click();
   const rounds = page.getByRole('navigation', { name: 'Rounds' }).locator('.cms-item');
+  await expect(rounds.first()).toBeVisible(); // the tab loads its data after opening
   const initialRounds = await rounds.count();
   expect(initialRounds).toBeGreaterThan(10);
 
@@ -116,8 +118,11 @@ test('an invited learner joins, studies and syncs across devices', async ({ brow
   await question.locator('.q-trigger').click();
   await expect(question.locator('.callout-tldr')).toBeVisible();
   await expect(question.getByText('Add your own notes')).toHaveCount(0); // feature switched off
+  // The write is debounced; wait for the PUT itself rather than the status text (already "Synced" from the initial pull).
+  const saved = laptop.page.waitForResponse((res) => res.url().endsWith('/api/me/progress') && res.request().method() === 'PUT');
   await question.getByRole('checkbox').check();
-  await expect(side.locator('.account-chip')).toContainText('Synced', { timeout: 10_000 });
+  expect((await saved).ok()).toBe(true);
+  await expect(side.locator('.account-chip')).toContainText('Synced');
 
   const phone = await newPage(browser);
   await phone.page.goto('/');
