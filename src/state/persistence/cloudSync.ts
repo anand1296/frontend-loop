@@ -24,6 +24,7 @@ import { createStore } from '../createStore.ts';
 import { mergeProgress, parseProgress, progressEquals, toDocument, type ProgressState } from '../progress.ts';
 import { summaryDocument, summaryEquals, type LearnerSummary } from '../summary.ts';
 import { getPlatform, paths } from '../../platform/runtime.ts';
+import { api, ApiError } from '../../platform/api.ts';
 
 /** `readonly`: signed in, but the viewer's access level can't write (e.g. shared as Viewer). */
 export type SyncStatus = 'local' | 'connecting' | 'synced' | 'saving' | 'readonly' | 'error';
@@ -49,6 +50,7 @@ function errorCode(error: unknown): string {
 /** Wires a store to a remote document. Returns a stop function. */
 export function syncWithRemote(store: Store<ProgressState>, doc: RemoteDoc, setStatus: (s: SyncStatus) => void): () => void {
   let remote: ProgressState | null = null;
+  let snapshots = 0;
   let writing = false;
   let again = false;
   let stopped = false;
@@ -70,8 +72,10 @@ export function syncWithRemote(store: Store<ProgressState>, doc: RemoteDoc, setS
     writing = true;
     setStatus('saving');
     try {
+      const seen = snapshots;
       await doc.set(toDocument(local));
-      remote = local;
+      // A snapshot that arrived during the write (the server's merged copy) is newer than `local`.
+      if (snapshots === seen) remote = local;
       retried = false;
       setStatus('synced');
     } catch (error) {
@@ -102,6 +106,7 @@ export function syncWithRemote(store: Store<ProgressState>, doc: RemoteDoc, setS
 
   const unsubscribeRemote = doc.onSnapshot(
     (snapshot) => {
+      snapshots += 1;
       const incoming = snapshot.exists ? parseProgress(snapshot.data()) : null;
       if (incoming) remote = incoming;
       const local = store.getState();
@@ -201,4 +206,92 @@ export async function startCloudSync(
   }
   syncWithRemote(store, platform.db.doc(paths.progress(platform.uid)), setStatus);
   syncSummary(store, platform.db.doc(paths.learner(platform.uid)), summarize);
+}
+
+/* ---------------------------------------------------------------- server mode */
+
+const POLL_MS = 5 * 60_000;
+
+function snapshotOf(data: Record<string, unknown>): ClaudeDocSnapshot {
+  return { exists: true, data: () => data, metadata: { fromCache: false, hasPendingWrites: false } };
+}
+
+/**
+ * The Go backend as a RemoteDoc. PUT /api/me/progress merges on the server
+ * (same last-writer-wins rule) and returns the merged document, which we feed
+ * back as a snapshot: one round trip both saves and pulls other devices'
+ * changes. Without push from the server, we re-read when the tab regains
+ * focus and every few minutes while it's visible.
+ */
+export function httpProgressDoc(): RemoteDoc {
+  const listeners = new Set<(snapshot: ClaudeDocSnapshot) => void>();
+  const emit = (data: Record<string, unknown>): void => {
+    for (const listener of [...listeners]) listener(snapshotOf(data));
+  };
+  const toDbError = (error: unknown): ClaudeDbError => {
+    if (error instanceof ApiError) {
+      // 401/403: signed out or disabled. 400/413: the server refuses this document. Both are terminal.
+      const code = error.status === 401 || error.status === 403 ? 'revoked' : error.status === 400 || error.status === 413 ? 'invalid_argument' : 'unavailable';
+      return { code, message: error.message };
+    }
+    return { code: 'unavailable', message: String(error) };
+  };
+  return {
+    async set(data) {
+      try {
+        const merged = await api<Record<string, unknown>>('/me/progress', { method: 'PUT', body: data });
+        emit(merged);
+      } catch (error) {
+        throw toDbError(error);
+      }
+    },
+    onSnapshot(next, onError) {
+      listeners.add(next);
+      let stopped = false;
+      const pull = async (): Promise<void> => {
+        try {
+          const doc = await api<Record<string, unknown>>('/me/progress');
+          if (!stopped) next(snapshotOf(doc));
+        } catch (error) {
+          const dbError = toDbError(error);
+          if (!stopped && dbError.code !== 'unavailable') onError?.(dbError);
+        }
+      };
+      void pull();
+      const onVisible = (): void => {
+        if (document.visibilityState === 'visible') void pull();
+      };
+      const timer = setInterval(() => {
+        if (document.visibilityState === 'visible') void pull();
+      }, POLL_MS);
+      document.addEventListener('visibilitychange', onVisible);
+      return () => {
+        stopped = true;
+        listeners.delete(next);
+        clearInterval(timer);
+        document.removeEventListener('visibilitychange', onVisible);
+      };
+    },
+  };
+}
+
+let stopServerSync: (() => void) | null = null;
+
+/** Replicates progress to the signed-in user's account on the Go backend. */
+export function startServerSync(store: Store<ProgressState>): void {
+  stopServerSync?.();
+  const setStatus = (status: SyncStatus): void => syncStatusStore.setState(() => status);
+  setStatus('connecting');
+  stopServerSync = syncWithRemote(store, httpProgressDoc(), setStatus);
+}
+
+/** Push any pending local change now (used right before signing out). */
+export async function flushServerSync(store: Store<ProgressState>): Promise<void> {
+  try {
+    await api('/me/progress', { method: 'PUT', body: toDocument(store.getState()), timeoutMs: 8000 });
+  } catch {
+    // Best effort: the server already has everything up to the last debounce.
+  }
+  stopServerSync?.();
+  stopServerSync = null;
 }

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { allQuestions, sectionsById } from '../../content/index.ts';
+import { useContent } from '../../content/index.ts';
 import { formatDayDistance, plural } from '../../lib/format.ts';
 import { REVIEW_INTERVAL_DAYS } from '../../lib/srs.ts';
 import { prefsStore } from '../../state/prefs.ts';
@@ -18,8 +18,9 @@ export function ReviewPage() {
   const [now] = useState(() => Date.now());
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
 
-  const due = useMemo(() => dueQuestions(allQuestions, progress, now), [progress, now]);
-  const upcoming = useMemo(() => upcomingQuestions(allQuestions, progress, now, 14), [progress, now]);
+  const { allQuestions, sectionsById } = useContent();
+  const due = useMemo(() => dueQuestions(allQuestions, progress, now), [allQuestions, progress, now]);
+  const upcoming = useMemo(() => upcomingQuestions(allQuestions, progress, now, 14), [allQuestions, progress, now]);
 
   const toggle = useCallback((id: string) => {
     setOpen((prev) => {

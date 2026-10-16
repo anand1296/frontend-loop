@@ -37,6 +37,14 @@ export function writeJson(key: string, value: unknown): boolean {
   }
 }
 
+export function removeKey(key: string): void {
+  try {
+    storage()?.removeItem(key);
+  } catch {
+    // Storage unavailable: nothing to remove.
+  }
+}
+
 export function loadProgress(): ProgressState {
   return parseProgress(readJson(PROGRESS_KEY)) ?? EMPTY_PROGRESS;
 }

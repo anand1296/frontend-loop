@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { sectionIndex, sections } from '../../content/index.ts';
+import { sectionIndex, useContent } from '../../content/index.ts';
+import { useFeature } from '../../platform/backend.ts';
 import { LEVELS, LEVEL_LABEL, type SectionMeta } from '../../content/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { ProgressBar } from '../../components/primitives.tsx';
@@ -61,8 +62,13 @@ const LEVEL_OPTIONS: ReadonlyArray<{ value: LevelFilter; label: string }> = [
 ];
 
 export function SectionPage({ section, focusId, focusAt }: Props) {
-  const status = useStore(prefsStore, (p) => p.status);
-  const level = useStore(prefsStore, (p) => p.level);
+  const { sections } = useContent();
+  const filtersOn = useFeature('filters');
+  const savedStatus = useStore(prefsStore, (p) => p.status);
+  const savedLevel = useStore(prefsStore, (p) => p.level);
+  // With the filters feature switched off, saved filters must not silently hide questions.
+  const status = filtersOn ? savedStatus : 'all';
+  const level = filtersOn ? savedLevel : 'all';
   const practiceMode = useStore(prefsStore, (p) => p.practiceMode);
   const progress = useStore(progressStore, (s) => s.questions);
 
@@ -146,7 +152,10 @@ export function SectionPage({ section, focusId, focusAt }: Props) {
         <p className="eyebrow">
           Round {position + 1} of {sections.length} · {plural(section.questions.length, 'question')} · about {formatMinutes(minutes)}
         </p>
-        <h1>{section.title}</h1>
+        <h1>
+          {section.title}
+          {section.published === false ? <span className="draft-chip">Draft round</span> : null}
+        </h1>
         <p className="lede">{section.description}</p>
         <div className="section-progress">
           <ProgressBar value={done} max={section.questions.length} label={`${section.title} progress`} />
@@ -157,8 +166,12 @@ export function SectionPage({ section, focusId, focusAt }: Props) {
       </header>
 
       <div className="toolbar">
-        <Segmented label="Show" value={status} options={STATUS_OPTIONS} onChange={(value) => updatePrefs({ status: value })} />
-        <Segmented label="Level" value={level} options={LEVEL_OPTIONS} onChange={(value) => updatePrefs({ level: value })} />
+        {filtersOn ? (
+          <>
+            <Segmented label="Show" value={status} options={STATUS_OPTIONS} onChange={(value) => updatePrefs({ status: value })} />
+            <Segmented label="Level" value={level} options={LEVEL_OPTIONS} onChange={(value) => updatePrefs({ level: value })} />
+          </>
+        ) : null}
         <button
           type="button"
           className="btn btn-quiet toolbar-end"

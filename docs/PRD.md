@@ -1,6 +1,8 @@
 # Product Requirements: Frontend Loop
 
-**Status:** v1.0 shipped · **Owner:** Anand · **Last updated:** 2026-10-16
+**Status:** v2.0 implemented (Go backend, accounts, admin CMS) · **Owner:** Anand · **Last updated:** 2026-10-16
+
+> The complete, current specification (requirements with IDs, architecture, data model, API, security, roadmap) is [SPEC.md](SPEC.md). This PRD keeps the product reasoning and the v1 → v2 story.
 
 ## 1. Problem
 
@@ -29,7 +31,7 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 - User-generated content, comments or social features.
 - An AI tutor or mock interviewer (see Roadmap).
 - Video content, courses or certificates.
-- Accounts and server-side storage beyond the optional host-provided sync.
+- Accounts and server-side storage beyond the optional host-provided sync. *(Changed in v2: accounts, invites and server storage are now in scope, with the no-account local mode kept.)*
 
 ## 4. User stories
 
@@ -49,6 +51,12 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 | U12 | learner | export/import my progress | I can move between browsers or back it up | Should |
 | U13 | learner | use it comfortably on my phone and in dark mode | I can study anywhere | Must |
 | U14 | mentor | share a link to one question | others land directly on it | Could |
+| U15 (v2) | learner | sign in once and have progress on every device | I can switch between laptop and phone | Must |
+| U16 (v2) | owner | invite people with a link and decide who may join | the group stays the people I chose | Must |
+| U17 (v2) | admin | add or edit rounds and questions in the browser, with a preview, drafts and history | the bank grows without deploys or mistakes | Must |
+| U18 (v2) | admin | see each learner's progress (not their notes) | I can help people who are stuck | Should |
+| U19 (v2) | admin | switch features on or off and post announcements | I can tailor the app to the group | Should |
+| U20 (v2) | owner | export content back to Markdown | the repository stays the long-term record | Should |
 
 ## 5. Functional requirements
 
@@ -93,7 +101,10 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 | **v1.0** (this release) | Everything in §5, 109 questions across 15 rounds, docs, unit tests, CI |
 | v1.1 | Component tests (Testing Library) and Playwright E2E in CI; Lighthouse CI budgets |
 | v1.2 | Offline support (service worker), installable PWA |
-| v2.0 | Mock-interview mode (timed random question sets), per-question confidence ratings, optional AI follow-up questions |
+| **v2.0** (this release) | Go + Postgres backend; GitHub sign-in; owner/admin/learner roles; invite links; synced progress; admin console (content CMS with preview, drafts, revisions, trash, repository sync and export; learners; invites; feature flags; site settings; announcements; activity log); full-stack CI |
+| v2.1 | Tracks (groups of rounds) and the first backend/Go, data and cloud rounds |
+| v2.2 | Redis (shared rate limits, caches), live updates via Server-Sent Events |
+| v3.0 | Mock-interview mode, confidence ratings, AI follow-ups and feedback, semantic search; optional AWS deployment with Terraform (SPEC §18) |
 
 ## 9. Open questions
 

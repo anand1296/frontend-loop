@@ -6,11 +6,23 @@ export function AnnouncementBanner() {
   const announcement = useStore(announcementStore, (a) => a);
   const dismissedAt = useStore(dismissedStore, (d) => d);
   if (!announcement || announcement.updatedAt <= dismissedAt) return null;
+  const { linkUrl, linkLabel } = announcement;
+  const external = linkUrl ? /^https?:\/\//i.test(linkUrl) : false;
   return (
-    <div className="announcement" role="status">
+    <div className="announcement" role="status" data-tone={announcement.tone ?? 'info'}>
       <p>
         <span className="announcement-label">From the organizer</span>
-        {announcement.message}
+        <span>
+          {announcement.message}
+          {linkUrl ? (
+            <>
+              {' '}
+              <a href={linkUrl} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+                {linkLabel || 'Open'}
+              </a>
+            </>
+          ) : null}
+        </span>
       </p>
       <button
         type="button"

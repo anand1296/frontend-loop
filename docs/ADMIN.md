@@ -1,39 +1,115 @@
-# Admin, roles and inviting people
+# Admin guide: roles, invites, content and features
 
-Frontend Loop is hosted as a claude.ai Artifact. claude.ai handles sign-in and sharing; the app adds roles, a learner dashboard and announcements on top, enforced by database access rules declared at publish time (not just hidden in the UI).
+There are two ways the app can be hosted, and admin works differently in each:
 
-## Roles
+- **With the Go backend** (Vercel + Neon, Docker): full admin console, described first.
+- **As a claude.ai Artifact** (no backend): owner dashboard and announcements through claude.ai's storage and sharing, described at the end.
+
+---
+
+## Part 1: With the Go backend
+
+### Roles
 
 | Role | Who | Can do |
 | --- | --- | --- |
-| **Super admin** | The artifact's owner (you) | Everything learners can, plus the **Admin** page: live learner dashboard, announcements, invite instructions |
-| **Learner (synced)** | Shared with **Contributor** access (or Editor) | Study; progress, notes and review dates sync across their devices; a progress summary appears on your dashboard |
-| **Learner (browser-only)** | Shared as **Viewer/Commenter**, or outside-org guests invited by email (unless Editor) | Study; progress stays in their browser; they don't appear on your dashboard |
+| **Owner** (super admin) | The GitHub account in `OWNER_GITHUB_LOGIN` (`anand1296`) | Everything below, plus: change anyone's role, manage admins, invite admins, site settings (name, headline, registration, content access). Can't be disabled or demoted from the app. |
+| **Admin** | People the owner promotes or invites as admin | All content editing, learner dashboard, learner invites, disable/remove learners, feature flags, announcements, activity log |
+| **Learner** | Invited people (or anyone, if registration is open) | Study with progress synced across devices; delete their own account |
+| Anonymous | Not signed in | Study with progress in the browser (unless the site is members-only) |
 
-Editors (co-maintainers) can publish new page versions but still **cannot** see the dashboard or change announcements: those rules check for the owner specifically.
+Full matrix: docs/SPEC.md §2.5.
 
-## Inviting people
+### Inviting people
 
-1. Open the artifact in claude.ai and use the **Share** menu at the top.
-2. Add people by name or email, or enable access for your organization.
-3. Choose **Contributor** for learners.
-4. Send them the link (the Admin page has a copy button). They sign in to claude.ai to open it.
+Admin → **Invites** → choose *who it's for* (a note only admins see), *joins as* (learner; admin if you're the owner), *can be used* (once, or 5/25/100 times for a group link) and *expires after* → **Create invite link** → copy and send it.
 
-The page itself can't send invitations or change sharing; that is deliberately reserved to claude.ai's Share menu.
+- The link is shown **once**; the server stores only a fingerprint (hash). Lost it? Revoke it and create another.
+- The person opens the link, sees who invited them, and signs in with GitHub. Their account is created with the invite's role.
+- Returning users never need a link again.
+- **Registration** (owner, Features & settings → Site & access): *Only people with an invite link* (default) or *Anyone with a GitHub account*.
+- **Content access**: *Everyone* (sign-in only syncs progress) or *Signed-in members only*.
 
-## What you can see about learners
+### Managing content (no code, no deploy)
 
-Each learner's app writes a **summary** only: questions done per round, total, last active time, and the round they were last in. Their full progress (per-question state, notes, review dates) lives in a per-user private document that nobody else can read, including you. Learners are told this in Settings.
+Admin → **Content**.
 
-## Data model and access rules
+- **Rounds:** *New round* (title; id is derived and permanent; description). Select a round to edit its title and description, publish/hide it, export it as Markdown, view it in the app, reorder with the arrows, or delete it (its questions go to Trash).
+- **Questions:** *New question* opens the editor:
+  - Question title (backticks render as code), permanent id (derived from the title), round, level, study minutes, tags.
+  - The answer in Markdown with **Write / Side by side / Preview**. The preview is rendered by the server, exactly as learners will see it, and lists every problem.
+  - *Insert…* adds callouts, code blocks and tables at the cursor. *Markdown help* summarizes the rules.
+  - **Draft** vs **Published** switch. Drafts can be incomplete and are visible only to admins (marked "Draft" in the app). Publishing requires a `> [!TLDR]` callout and at least 200 characters.
+  - **Save** (or Ctrl/⌘+S). If someone else saved since you opened it, you'll be told and can load their version.
+  - **History**: every previous version; *Load into editor* then Save to restore it.
+- **Trash:** deleted questions; *Restore as draft*.
+- **Sync from repository:** compares the database with the `content/*.md` files deployed with this version. *Add what's missing* imports new rounds/questions committed to git. *Overwrite changed…* replaces edited questions with the repository version (history kept). Questions created in the console are never touched.
+- **Export all (.zip):** every published round as `content/NN-id.md`, ready to commit to the repository.
+
+Every change is live for everyone immediately and recorded in **Activity**.
+
+#### Two ways to manage content: pick one as the source of truth
+
+| | Console-first | Git-first |
+| --- | --- | --- |
+| Edit in | the admin console | `content/*.md` in the repo (PR review) |
+| Get changes into the other | *Export all* → commit | push → deploy → *Sync from repository* |
+| Best for | quick edits, non-engineers, drafts | review workflow, bulk changes |
+
+### Learners
+
+Admin → **Learners**: everyone with role, progress (% and done/total), rounds finished, reviews due, last active and current round. The owner can change roles; admins can disable/enable and remove learners; the owner can also manage admins. Disabling someone signs them out everywhere.
+
+Privacy: admins see this summary only. Notes, review dates and per-question history are never sent to admins. Learners are told this in Settings, and can delete their account there.
+
+### Features and settings
+
+Admin → **Features & settings**:
+
+- **Announcement:** message, tone (info, good news, heads-up), optional link (`https://…` or `#round-id`). Shown at the top of the app until each person dismisses it. *Clear current* removes it.
+- **Features:** switch built-in features on or off for everyone, instantly: Spaced review, Search, Personal notes, Round filters, Export and import, Level breakdown.
+- **Site & access** (owner): app name, overview headline, registration, content access.
+
+### Changing or adding features themselves
+
+Switching features is a setting. **Building a new feature is a code change**, and that is deliberate (ADR-019):
+
+1. Change the code (or ask Claude to) on a branch; CI runs every test.
+2. Merge to `main`; Vercel deploys in about a minute. Database migrations, if any, run automatically.
+3. Ship new features behind a new flag that defaults to off, then switch it on from the console when ready.
+
+### Where it lives in code
+
+| Area | Files |
+| --- | --- |
+| Roles, sign-in, invites, sessions | `backend/store/users.go`, `backend/server/session.go`, `backend/auth/` |
+| Content management | `backend/store/content.go`, `backend/server/admin.go`, `backend/catalog/`, `backend/markdown/` |
+| Settings and flags | `backend/server/settings.go` |
+| Console UI | `src/features/console/` (`ContentTab`, `QuestionEditor`, `PeopleTab`, `InvitesTab`, `SettingsTab`, `ActivityTab`) |
+| Sign-in UI | `src/features/account/Account.tsx`, `src/platform/backend.ts`, `src/platform/launch.ts` |
+| Tests | `backend/server/server_test.go` (every rule above), `e2e/server.spec.ts` |
+
+---
+
+## Part 2: As a claude.ai Artifact
+
+The single-file build hosted as a claude.ai Artifact has no backend. claude.ai handles sign-in and sharing; the app adds an owner dashboard and announcements on top, enforced by storage access rules declared at publish time.
+
+| Role | Who | Can do |
+| --- | --- | --- |
+| **Super admin** | The artifact's owner | Admin page: live learner dashboard, announcements, invite instructions |
+| **Learner (synced)** | Shared with **Contributor** access (or Editor) | Progress, notes and review dates sync across devices; a summary appears on the dashboard |
+| **Learner (browser-only)** | Viewer/Commenter, or outside-org guests (unless Editor) | Study; progress stays in their browser |
+
+**Inviting:** Share menu in claude.ai → add people or your organization → Contributor → send the link (the Admin page has a copy button). The page itself can't send invitations.
+
+**Data and rules:**
 
 | Path | Contents | Read | Write |
 | --- | --- | --- | --- |
 | `data/users/<uid>/progress` | Full progress (private) | that user only | that user (Contributor+) |
 | `learners/<uid>` | Progress summary | owner, and that user | that user (Contributor+), owner |
 | `config/announcement` | Announcement banner | everyone who can open the page | owner only |
-
-Declared at publish:
 
 ```json
 {
@@ -48,21 +124,4 @@ Declared at publish:
 }
 ```
 
-`data/users/{self}` privacy is the platform default. The `profile` scope lets the dashboard show names and avatars; the app stores only opaque user ids, never names.
-
-Verified after publishing: as the owner, the `learners` collection is readable; at Editor (`admin`) level it reads as empty, and writing `config/announcement` is refused.
-
-## Where it lives in code
-
-| File | Role |
-| --- | --- |
-| `src/platform/runtime.ts` | Connects once to `window.claude`, exposes role (`owner` / `learner` / `local`) and document paths |
-| `src/state/summary.ts` | Computes and validates the shared summary (derived from progress only, so no write churn) |
-| `src/state/persistence/cloudSync.ts` | `syncWithRemote` (private progress) and `syncSummary` (dashboard row); `readonly` status for view-only access |
-| `src/features/admin/AdminPage.tsx` | Dashboard, invite panel, announcement editor (owner only) |
-| `src/features/announcement/*` | Announcement store, banner, owner publish |
-| `e2e/admin.spec.ts` | Owner, learner and viewer flows against an in-memory runtime that enforces the same rules |
-
-## Running outside claude.ai
-
-On Vercel/Netlify/localhost there is no `window.claude`: the app runs local-only, the Admin entry is hidden, and `#admin` explains that admin features need the hosted version. To get multi-user admin on your own hosting, implement the same three documents on a backend with auth (Supabase/Firebase); the `RemoteDoc`/`WritableDoc` interfaces in `cloudSync.ts` are the seam.
+Code: `src/platform/runtime.ts`, `src/state/summary.ts`, `src/state/persistence/cloudSync.ts` (`syncWithRemote`, `syncSummary`), `src/features/admin/AdminPage.tsx`, `src/features/announcement/*`, `e2e/admin.spec.ts`.

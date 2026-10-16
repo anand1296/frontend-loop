@@ -8,7 +8,7 @@
  * router is ~40 lines and works inside sandboxed hosts where only a plain
  * #anchor survives.
  */
-import { questionsById, sectionsById } from '../content/index.ts';
+import { contentStore, getContent } from '../content/index.ts';
 import { createStore } from './createStore.ts';
 
 export type Route =
@@ -22,6 +22,7 @@ export function parseHash(hash: string): Route {
   const token = decodeURIComponent(hash.replace(/^#/, ''));
   if (token === 'review') return { name: 'review' };
   if (token === 'admin') return { name: 'admin' };
+  const { sectionsById, questionsById } = getContent();
   if (sectionsById.has(token)) return { name: 'section', sectionId: token, questionId: null, focusAt: Date.now() };
   const question = questionsById.get(token);
   if (question) return { name: 'section', sectionId: question.sectionId, questionId: question.id, focusAt: Date.now() };
@@ -79,4 +80,10 @@ export function initRouter(): void {
   const sync = (): void => routeStore.setState(() => parseHash(currentHash()));
   window.addEventListener('popstate', sync);
   window.addEventListener('hashchange', sync);
+  // Server content arrives (or changes after an admin edit): re-resolve the current link.
+  contentStore.subscribe(() => {
+    const next = parseHash(currentHash());
+    const current = routeStore.getState();
+    if (routeToHash(next) !== routeToHash(current)) routeStore.setState(() => next);
+  });
 }

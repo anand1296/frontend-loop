@@ -14,10 +14,10 @@ import {
   type ProgressState,
   type ReviewOutcome,
 } from './progress.ts';
-import { loadProgress, onOtherTabWrite, saveProgress } from './persistence/local.ts';
-import { startCloudSync } from './persistence/cloudSync.ts';
+import { loadProgress, onOtherTabWrite, PROGRESS_KEY, readJson, removeKey, saveProgress, writeJson } from './persistence/local.ts';
+import { flushServerSync, startCloudSync, startServerSync } from './persistence/cloudSync.ts';
 import { computeSummary } from './summary.ts';
-import { sections } from '../content/index.ts';
+import { getContent } from '../content/index.ts';
 
 export const progressStore = createStore<ProgressState>(EMPTY_PROGRESS);
 
@@ -57,10 +57,30 @@ export const progressActions = {
 
 let initialized = false;
 
-/** Boot persistence once: hydrate, save on change, follow other tabs, try cloud sync. */
-export function initProgress(): void {
+/** Which signed-in account (server mode) this browser's local copy belongs to. */
+const OWNER_KEY = 'frontend-loop:progress-owner';
+
+export interface ProgressBoot {
+  /** Server mode: the signed-in user's id, or null when signed out. Omit for local/Artifact mode. */
+  serverUserId?: number | null;
+}
+
+/**
+ * Boot persistence once: hydrate, save on change, follow other tabs, then sync.
+ *
+ * Server mode adopts anonymous local progress into the account on first
+ * sign-in, but never mixes two accounts: if this browser's copy belongs to
+ * someone else, it starts from that account's server copy instead.
+ */
+export function initProgress(boot: ProgressBoot = {}): void {
   if (initialized) return;
   initialized = true;
+  const serverMode = boot.serverUserId !== undefined;
+  if (serverMode && boot.serverUserId !== null) {
+    const owner = readJson(OWNER_KEY);
+    if (typeof owner === 'number' && owner !== boot.serverUserId) removeKey(PROGRESS_KEY);
+    writeJson(OWNER_KEY, boot.serverUserId);
+  }
   progressStore.setState(() => loadProgress());
   progressStore.subscribe(() => saveProgress(progressStore.getState()));
   onOtherTabWrite((incoming) => {
@@ -69,5 +89,16 @@ export function initProgress(): void {
       return progressEquals(merged, s) ? s : merged;
     });
   });
-  void startCloudSync(progressStore, (state) => computeSummary(sections, state));
+  if (serverMode) {
+    if (boot.serverUserId !== null) startServerSync(progressStore);
+  } else {
+    void startCloudSync(progressStore, (state) => computeSummary(getContent().sections, state));
+  }
+}
+
+/** Sign-out hygiene on shared computers: save, then forget this account's local copy. */
+export async function forgetLocalProgress(): Promise<void> {
+  await flushServerSync(progressStore);
+  removeKey(PROGRESS_KEY);
+  removeKey(OWNER_KEY);
 }

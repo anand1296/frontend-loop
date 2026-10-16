@@ -1,14 +1,20 @@
 # Frontend Loop
 
-**Interview prep for senior, lead and principal frontend engineers.** 109 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
+**Interview prep for senior, lead and principal engineers.** 109 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
-**Hosted version:** https://claude.ai/artifact/WXur8AanHGrgRZpkh4Jg9i (a claude.ai Artifact: private to its owner until shared; progress there syncs across devices). The owner is the app's **super admin**, with a live learner dashboard and announcements; invite people through the page's Share menu. See [docs/ADMIN.md](docs/ADMIN.md).
+Version 2 adds a **Go + Postgres backend**: GitHub sign-in, synced progress across devices, invite links, roles (owner, admins, learners) and an **admin console** where you can add and edit rounds and questions live (preview, drafts, history, trash), see learners' progress, switch features and post announcements, with no code changes or deploys.
+
+The same frontend still runs **without** a backend: on any static host, as one HTML file, or as a claude.ai Artifact (https://claude.ai/artifact/WXur8AanHGrgRZpkh4Jg9i).
 
 ![Overview in light mode](docs/screenshots/overview-light.png)
 
 | Question view (dark) | Mobile |
 | --- | --- |
 | ![A question opened in dark mode](docs/screenshots/question-dark.png) | ![Mobile overview](docs/screenshots/mobile-dark.png) |
+
+| Admin console: content | Question editor with live preview |
+| --- | --- |
+| ![Admin console content manager](docs/screenshots/console-content.png) | ![Question editor](docs/screenshots/console-editor.png) |
 
 ---
 
@@ -17,31 +23,34 @@
 - [What it does](#what-it-does)
 - [The question bank](#the-question-bank)
 - [Quick start](#quick-start)
+- [Deploy (Vercel + Neon, free)](#deploy-vercel--neon-free)
 - [Scripts](#scripts)
 - [Tech stack and why](#tech-stack-and-why)
 - [Architecture at a glance](#architecture-at-a-glance)
-- [How your progress is saved](#how-your-progress-is-saved)
-- [Admin and inviting people](#admin-and-inviting-people)
+- [Accounts, progress and privacy](#accounts-progress-and-privacy)
+- [Admin: content, people, features](#admin-content-people-features)
 - [Project structure](#project-structure)
 - [Testing and quality](#testing-and-quality)
-- [Deployment](#deployment)
 - [This repo as a learning project](#this-repo-as-a-learning-project)
 - [Roadmap](#roadmap)
 - [Docs index](#docs-index)
 
 ## What it does
 
-- **Rounds and accordions.** Each topic is a round; each question is an accordion row showing only the question, its level (Senior, Lead/Staff, Principal), study time and tags. Expand it for the full answer.
-- **Answers built for the room.** Every answer opens with *the 60-second answer*, then the mental model, correct TypeScript/React code with a copy button, trade-offs, edge cases, production vs interview differences, likely follow-ups, common mistakes and primary references.
-- **Tick it off.** A checkbox on every row (and "Mark done & next" inside the answer). Progress is saved automatically.
-- **Pick up where you left off.** The overview's main action reopens the question you were on, or the next one you haven't done.
-- **The loop ring.** One ring, one arc per round, filled as you go. Per-level progress below it.
-- **Spaced review.** Done answers come back after 2, 5, 12, 30 and 75 days. "Still solid" pushes them out; "Needs another pass" puts them back on your list.
-- **Practice mode.** Hides each answer behind "Answer it out loud first" with a stopwatch. Active recall beats re-reading.
-- **Your own notes** per question, saved as you type. Ideal for behavioral stories in your own words.
-- **Search everything** with `/` or `Ctrl/⌘ K`; filters by status and level; deep links to every question (`#oauth-pkce-flow`).
-- **Super admin (owner only):** an Admin page with a live dashboard of every learner's progress, an announcement banner you control, and invite instructions with a copy-link button. Enforced by database access rules, not just hidden UI.
-- **Export/import** progress as JSON, reset with confirmation, light/dark/system theme, responsive down to small phones, keyboard and screen-reader friendly.
+**For learners**
+
+- **Rounds and accordions.** Each topic is a round; each question is an accordion row showing the question, its level (Senior, Lead/Staff, Principal), study time and tags. Expand it for the full answer.
+- **Answers built for the room.** Every answer opens with *the 60-second answer*, then the mental model, correct code with a copy button, trade-offs, edge cases, follow-ups, common mistakes and primary references.
+- **Tick it off; pick up where you left off.** Progress saves automatically; the overview reopens the question you were on.
+- **Spaced review** (2, 5, 12, 30, 75 days), **practice mode** (answer out loud first, with a stopwatch), **private notes**, **search** (`/` or Ctrl/⌘ K), filters, deep links (`#oauth-pkce-flow`), light/dark, phone-friendly, keyboard and screen-reader friendly.
+- **Sign in with GitHub** (server mode) and your progress follows you to every device. Anything you did before signing in is kept.
+
+**For the owner and admins** (server mode)
+
+- **Content manager:** create, edit, reorder, publish/hide and delete rounds and questions in the browser; Markdown editor with a live, server-rendered preview; drafts visible only to admins; revision history; trash; sync with and export to the repository's Markdown.
+- **People:** invite links (single-use or group, with expiry), roles, a learner dashboard (progress, rounds finished, reviews due, last active), disable/remove.
+- **Features and settings:** switch built-in features on or off, post an announcement, set the app name, headline, who can register and who can read.
+- **Activity log** of every change.
 
 ## The question bank
 
@@ -63,155 +72,172 @@
 | 14 | AI-Powered Frontends | 6 | Streaming LLM UI, streaming Markdown, generative UI, RAG UX, cost, evals |
 | 15 | Leadership & Behavioral | 8 | Story bank, migration story, disagreement, mentoring, tech debt, RFCs, influence |
 
-About 30 hours of study in total. 50 questions are tagged Senior, 48 Lead/Staff, 11 Principal.
-
-The core utilities in rounds 03, 06 and 14 (combinators, pool, retry, debounce/throttle, SWR cache, emitter, deep clone, latest-wins, virtual list index, undo history, upload queue, SSE parser, Markdown block splitter) were extracted, type-checked under strict TypeScript and run against test cases during development.
+About 30 hours of study. Code fences already support Go, SQL, Terraform, Python, Dockerfile and Protobuf for the backend and cloud rounds on the roadmap.
 
 ## Quick start
 
-Requirements: **Node 22.18+** (the scripts and unit tests run TypeScript directly via Node's type stripping).
+Requirements: **Node 22.18+**; for the backend also **Go 1.24+** and **Docker** (or any Postgres).
+
+Frontend only (local-only mode):
 
 ```bash
 npm install
 npm run dev            # http://localhost:5173
 ```
 
-Then open a round, expand a question, and tick it off.
+Full stack:
+
+```bash
+cp .env.example .env          # DEV_LOGIN=1, OWNER_GITHUB_LOGIN=anand1296
+docker compose up -d db       # Postgres
+npm install
+npm run dev:api               # Go API on :8080 (migrates and seeds on first start)
+npm run dev                   # http://localhost:5173 (proxies /api)
+```
+
+Click **Sign in** → *Developer sign-in* → `anand1296` to be the owner. Or run everything in one container: `docker compose up --build` → http://localhost:8080.
+
+## Deploy (Vercel + Neon, free)
+
+The repo is ready for Vercel: the Vite frontend is static and `api/index.go` is a Go serverless function. Step by step in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**; in short:
+
+1. Import the repo in Vercel and deploy (works immediately in local-only mode).
+2. Vercel → Storage → create a **Neon** Postgres database and connect it (sets `DATABASE_URL`).
+3. Create a **GitHub OAuth app** with callback `https://<your-app>.vercel.app/api/auth/github/callback`.
+4. Set `OWNER_GITHUB_LOGIN`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `APP_URL`; redeploy.
+5. Open `/api/health`, then sign in with GitHub: the sidebar shows **Admin · Super admin**.
+
+Every push to `main` redeploys; migrations run automatically.
 
 ## Scripts
 
 | Script | What it does |
 | --- | --- |
-| `npm run dev` | Vite dev server; editing `content/*.md` reloads the page |
-| `npm run build` | Validate content → type-check → Vite production build into `dist/` (code-split per round) |
-| `npm run build:single` | One self-contained HTML file in `dist-single/` (esbuild) |
-| `npm run preview` | Serve `dist/` locally |
-| `npm run content:check` | Validate every question and print a per-round summary |
+| `npm run dev` | Vite dev server (proxies `/api` to the Go API on :8080) |
+| `npm run dev:api` | Go API (`go run ./cmd/server`), reads `.env` |
+| `npm run build` | Validate content → type-check → Vite production build into `dist/` |
+| `npm run build:single` | One self-contained HTML file in `dist-single/` (esbuild; never probes for a backend) |
+| `npm run build:web-esbuild` | Multi-file web build in `dist-web/` without Vite (backend detection on) |
+| `npm run content:check` | Validate every question (`--emit file.json` writes the compiled output for the parity test) |
 | `npm run typecheck` | `tsc --noEmit` (strict) |
-| `npm test` | Unit tests with `node --test` (no extra dependencies) |
-| `npm run test:e2e` | Playwright tests against the production build (desktop + mobile) |
+| `npm test` | TypeScript unit tests (`node --test`) |
+| `npm run test:go` | Go tests (set `TEST_DATABASE_URL` to a throwaway database to include integration tests) |
+| `npm run test:e2e` | Playwright against the static build (desktop + mobile) |
+| `npm run test:e2e:server` | Playwright against a running full stack (`E2E_SERVER_URL`) |
 | `npm run check` | content check + typecheck + unit tests |
 
 ## Tech stack and why
 
 | Choice | Why |
 | --- | --- |
-| **React 19 + TypeScript (strict)** | Familiar, modern (`use`, Suspense, transitions), strict typing with `noUncheckedIndexedAccess` and `erasableSyntaxOnly` |
+| **React 19 + TypeScript (strict)** | Familiar, modern (`use`, Suspense, transitions); strict typing with `noUncheckedIndexedAccess` |
 | **Vite** | Fast dev server, simple plugin API for the content pipeline, static output |
-| **Markdown content compiled at build time** (marked + highlight.js) | No parser or highlighter shipped to users; content errors fail CI; safe HTML by construction |
-| **Tiny external store + `useSyncExternalStore`** | The state is small; 30 lines beat a library and show the mechanism |
+| **Go 1.24, standard library HTTP** | Small, explicit, fast; routing with Go 1.22 patterns; no framework to learn first (ADR-012) |
+| **Postgres + `database/sql` + plain SQL** | Transactions, row locks, JSONB; free on Neon; visible, reviewable queries; embedded migrations (ADR-013) |
+| **GitHub OAuth + server-side sessions** | No passwords or email; instant revocation; HttpOnly cookies (ADR-014) |
+| **Markdown rendered at build time (marked) and at save time (goldmark)** | No parser in the browser; one safe output; a CI parity test keeps both renderers identical (ADR-016) |
+| **Tiny external stores + `useSyncExternalStore`** | Small state; 30 lines beat a library and show the mechanism |
 | **Plain CSS with design tokens** | Exact light/dark theming, zero runtime |
-| **`node --test`** for logic, **Playwright** for E2E | Fast, dependency-light unit tests; real-browser confidence |
-| **esbuild single-file build** | Host anywhere, open from disk, embed in platforms that want one file |
+| **`node --test`, `go test`, Playwright** | Fast unit tests, real-database integration tests, real-browser E2E |
+| **Vercel + Neon, Docker** | Free hosting; the same handler also runs as a distroless container (ADR-018) |
 
-Each choice is recorded with context and consequences in [docs/DECISIONS.md](docs/DECISIONS.md).
+Every decision, with context and consequences: [docs/DECISIONS.md](docs/DECISIONS.md) (21 ADRs).
 
 ## Architecture at a glance
 
 ```text
-content/*.md ──▶ build/content (parse · validate · highlight · escape) ──▶ virtual modules
-                                                                            ├─ virtual:content (metadata + search text, eager)
-                                                                            └─ virtual:content/section/<id> (answer HTML, lazy per round)
-Browser
-  App shell (sidebar · drawer · search dialog · settings)
-  ├─ Overview (loop ring, resume, review, rounds)
-  ├─ Round page (filters · accordion items · Answer via use()+Suspense · notes · practice gate)
-  └─ Review (due list · upcoming)
-  Stores: progress · prefs · route  ──▶ localStorage · other tabs · optional cloud doc
+Browser (React)
+  boot: GET /api/bootstrap ── server mode ──▶ content, user, flags, settings from the API
+                           └─ otherwise ───▶ local-only mode (bundled content, browser storage)
+  ├─ Study views: overview · round (accordion) · review · search · settings
+  ├─ Account: sign in, invite, account settings
+  └─ Admin console: content manager + editor · learners · invites · features & settings · activity
+
+Vercel
+  ├─ static: Vite build (dist/)
+  └─ Go function api/index.go ──▶ backend/server (routes, middleware: recover · headers · log · CSRF · session)
+                                    ├─ backend/store (Postgres, migrations, transactions)
+                                    ├─ backend/catalog + backend/markdown (validate, render, import/export)
+                                    ├─ backend/progress (merge, summaries)
+                                    └─ backend/auth (tokens, GitHub OAuth)
+                                  ──▶ Postgres (Neon)
 ```
 
-Details, module boundaries, data model and sync protocol: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The full specification (requirements, data model, API, flows, security, operations, roadmap) is **[docs/SPEC.md](docs/SPEC.md)**. Frontend internals: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## How your progress is saved
+## Accounts, progress and privacy
 
-- **In your browser**, instantly, under `frontend-loop:progress:v1` in localStorage. It's validated on every read, so old or corrupted data never breaks the app.
-- **Across tabs**: open tabs merge each other's changes.
-- **Across devices** when hosted as a claude.ai Artifact: progress syncs to a private per-user document (`data/users/<your id>/progress`) that only you can read. Merge is last-writer-wins per question, so ticking on your phone and your laptop both count.
-- **Anywhere else**: Settings → *Copy progress as JSON* / *Import…* moves progress between browsers.
+- **Always local-first:** progress is saved in the browser instantly (validated on read) and merged across tabs.
+- **Signed in (server mode):** progress syncs to your account; the server merges devices per question (last writer wins), so ticking on phone and laptop both count. Signing out clears the device's copy.
+- **claude.ai Artifact:** syncs to a private per-user document there.
+- **Admins see a summary only** (done per round, reviews due, last active). Notes and review dates stay private. You can delete your account from Settings.
+- No analytics or trackers.
 
-Nothing is sent to any analytics service.
+## Admin: content, people, features
 
-## Admin and inviting people
+You (`OWNER_GITHUB_LOGIN=anand1296`) are the **owner**: everything an admin can do, plus roles, admin invites and site settings.
 
-- **You are the super admin** because you own the hosted artifact. The sidebar shows **Admin** (with a *Super admin* chip) only to you.
-- **Invite**: open the hosted page in claude.ai → **Share** → add people or your organization → give learners **Contributor** access → send the link (Admin has a copy button).
-- **Dashboard**: every Contributor who opens the app appears with progress, rounds finished, last activity and current round, live.
-- **Announcements**: post a banner everyone sees until they dismiss it.
-- **Privacy**: learners share only a summary; notes and review schedules stay private, and Settings tells them so.
-- Viewers can study but their progress stays in their browser; Editors can republish the page but can't see the dashboard.
+- **Content without deploys:** Admin → Content → *New round* / *New question*, write Markdown with a live preview, save as draft or publish. Edits are versioned; deleted questions go to Trash; *Export all* gives you `content/*.md` to commit.
+- **Invite people:** Admin → Invites → create a link (once or for a group, with expiry) → send it. Registration can be invite-only (default) or open.
+- **Features:** switch Spaced review, Search, Notes, Filters, Export/import and the Level breakdown on or off for everyone. Brand-new features are code changes: push to `main` and Vercel deploys them (ideally behind a new flag).
 
-Full details, access rules and verification: [docs/ADMIN.md](docs/ADMIN.md).
+Guide: [docs/ADMIN.md](docs/ADMIN.md).
 
 ## Project structure
 
 ```text
 frontend-loop/
-├─ content/                 15 rounds of questions (Markdown, one file per round)
-├─ build/
-│  ├─ content/              pure compiler: frontmatter, markdown renderer, compile, codegen
-│  └─ vite-plugin-content.ts
-├─ scripts/                 build-single-file.ts (esbuild), check-content.ts
-├─ src/
-│  ├─ app/                  App shell, Sidebar
-│  ├─ features/             overview · section · review · search · settings
-│  ├─ components/           Icon, LoopRing, primitives (Dialog, ErrorBoundary, …)
-│  ├─ content/              types (shared with the compiler), content API + answer loader
-│  ├─ state/                stores, pure progress model, selectors, router, persistence
-│  ├─ lib/                  search, spaced-review ladder, formatting
-│  ├─ styles/               tokens, base, layout, components, prose + syntax colors
-│  └─ types/                window.claude runtime types, asset modules
-├─ tests/                   unit tests (node:test)
-├─ e2e/                     Playwright specs
-├─ docs/                    PRD, architecture, ADRs, content guide, learning guide, screenshots
-└─ .github/workflows/       CI and optional GitHub Pages deploy
+├─ content/              question bank (Markdown) + embed.go (bundled into the Go binary)
+├─ src/                  React app: app/ features/ platform/ content/ state/ components/ lib/ styles/
+├─ build/content/        TypeScript content compiler (marked + highlight.js)
+├─ backend/              Go: server/ store/ (+ migrations/) catalog/ markdown/ progress/ auth/
+├─ api/index.go          Vercel serverless entry
+├─ cmd/server/           standalone binary (API + static files)
+├─ tests/                TypeScript unit tests
+├─ e2e/                  Playwright: static mode, Artifact build, mobile, full stack
+├─ scripts/              content check, single-file and esbuild builds
+├─ docs/                 SPEC, PRD, architecture, ADRs, deployment, admin, content and learning guides
+├─ Dockerfile · docker-compose.yml · vercel.json · .env.example
+└─ .github/workflows/    CI: web · go (with Postgres) · e2e-server
 ```
 
 ## Testing and quality
 
-- **Content validation**: every question needs an id, level, tags, minutes and a TL;DR; ids are unique; only known code languages and callouts are allowed. Errors print `file:line "Question"`.
-- **Unit tests** (35): compiler (including XSS escaping and unsafe links), progress model, merge properties, parsing untrusted data, search ranking, resume logic, review queue, and the cloud sync protocol against a fake remote document, learner summaries (no notes leak), summary write coalescing, read-only access and announcements.
-- **E2E** (11, Playwright): the exact hosted build rendered inside a sandboxed iframe with a strict Content-Security-Policy (with and without storage access); tick → reload → resume with notes; keyboard search and deep links; practice mode; import → review → reset; filters, theme and skip link; mobile drawer with no horizontal overflow; owner dashboard + announcement, learner restrictions and privacy notice, view-only fallback (against an in-memory runtime enforcing the published access rules).
-- **CI** runs content check, type check, unit tests, both builds and E2E on every PR.
+| Suite | Count | Covers |
+| --- | --- | --- |
+| Go unit | 15 | Markdown rendering and safety, every code language, content parsing/validation/export round-trip, progress merge properties |
+| Go integration (real Postgres) | 13 | Every API rule over HTTP: invites, roles, disabling, expiry, open/members-only, settings, full CMS lifecycle, revisions, trash, ETags, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth (fake provider), concurrent invite race, serverless entry |
+| Renderer parity | 109 answers | Go and TypeScript renderers produce the same documents |
+| TypeScript unit | 37 | Compiler, progress model, search, selectors, sync protocols (Artifact and HTTP), language-list parity |
+| E2E static | 11 | Study flows, hosted Artifact build in a sandboxed CSP frame, mobile |
+| E2E full stack | 3 | Owner edits content and settings and invites; learner joins, studies, syncs to a second device; owner sees progress; strangers refused |
 
-## Deployment
-
-The output is static; pick any host.
-
-**Vercel** (zero config): import the repo, framework preset *Vite*, build `npm run build`, output `dist`.
-
-**Netlify**: build `npm run build`, publish `dist`.
-
-**GitHub Pages**: enable *Settings → Pages → Source: GitHub Actions*; `.github/workflows/deploy-pages.yml` builds and deploys on push to `main`. The relative `base: './'` in `vite.config.ts` makes sub-path hosting work.
-
-**Single file**: `npm run build:single` and host or share `dist-single/frontend-loop.html` (works from disk). `dist-single/artifact.html` is the same app without the `<html>/<head>` wrapper, for hosts that provide their own document shell, such as claude.ai Artifacts.
-
-Hash routing means no server rewrite rules are needed anywhere.
+CI runs all of it on every push and PR (Go tests with `-race`), plus `gofmt` and `go vet`.
 
 ## This repo as a learning project
 
-The app uses the techniques its answers teach: `useSyncExternalStore` stores, React 19 `use()` with Suspense and error-boundary retry, adjusting state during render instead of effects, an ARIA combobox with `aria-activedescendant`, native `<dialog>`, local-first sync with a last-writer-wins merge, build-time XSS-safe rendering, a Vite plugin with virtual modules, and dependency-free tests.
+The app uses the techniques its answers teach, now on both sides: `useSyncExternalStore` stores, React 19 `use()` + Suspense, accessible combobox, tabs and dialogs, local-first sync with a CRDT-style merge, build-time and save-time XSS-safe rendering; and in Go: standard-library routing and middleware, OAuth and cookie sessions, CSRF defenses, transactions with row and advisory locks, optimistic concurrency, embedded migrations, integration tests against a real database, and one handler deployed serverless and as a container.
 
-[docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) maps each file to the question it illustrates and lists 14 graded exercises (keyboard shortcuts, component tests, confidence ratings with a data migration, mock-interview mode, virtualization, offline PWA, worker search, a real backend sync adapter, observability, AI follow-up questions, and two principal-level writing exercises).
+[docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) has a frontend and a backend code tour and 25 graded exercises, including the full-stack track (Redis, SSE, sqlc, OpenTelemetry, Terraform on AWS, AI follow-ups, semantic search).
 
 ## Roadmap
 
-- Component tests with Testing Library + Vitest.
-- Offline PWA with an update prompt.
-- Mock-interview mode (timed random sets) and per-question confidence ratings feeding the review schedule.
-- Optional AI-generated follow-up questions, streamed from a small backend.
-- More rounds: CSS architecture and layout, internationalization, mobile web and PWAs, data visualization.
+From frontend prep to full-stack prep (details in [docs/SPEC.md §18](docs/SPEC.md#18-roadmap-from-frontend-prep-to-full-stack-prep)):
+
+1. **Tracks** of rounds: Frontend, Backend & Go, Data (Postgres, Redis), Cloud & AWS, Infrastructure as Code (Terraform), System Design, AI Engineering, Leadership.
+2. **Redis**: shared rate limits, caches, leaderboards, pub/sub; **live updates** with Server-Sent Events.
+3. **Mock interviews**, confidence ratings, **AI follow-ups and feedback**, semantic search (pgvector).
+4. **AWS with Terraform**: ECS Fargate or Lambda, RDS, ElastiCache, S3 + CloudFront, OIDC CI/CD; OpenTelemetry and SLOs.
 
 ## Docs index
 
 | Doc | Purpose |
 | --- | --- |
-| [docs/PRD.md](docs/PRD.md) | Problem, personas, goals and non-goals, user stories, requirements, metrics, release plan |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Build pipeline, runtime modules, state model, sync protocol, routing, performance, a11y, security, testing |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Eleven architecture decision records |
-| [docs/CONTENT_GUIDE.md](docs/CONTENT_GUIDE.md) | How to write and add questions |
-| [docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) | Code tour and exercises |
-| [docs/ADMIN.md](docs/ADMIN.md) | Roles, inviting people, dashboard data, access rules |
-
-## Development notes
-
-This version was built in a sandbox without npm registry access. Everything except the Vite toolchain was exercised there: content compilation and validation, strict type-checking of all non-React modules, the 35 unit tests, the esbuild single-file build, and the 11 Playwright E2E tests in Chromium against that build. The Vite dev server/build path (`vite.config.ts`, `build/vite-plugin-content.ts`) and type-checking of the React components against `@types/react` should be confirmed on first local run with `npm install && npm run build && npm run test:e2e`.
+| [docs/SPEC.md](docs/SPEC.md) | **The technical specification**: requirements, architecture, data model, API, flows, security, operations, decisions, roadmap |
+| [docs/PRD.md](docs/PRD.md) | Problem, personas, user stories, metrics, release plan |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Frontend internals: build pipeline, modules, state, sync, routing, rendering, a11y |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | 21 architecture decision records |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel + Neon + GitHub OAuth, local full stack, Docker, static |
+| [docs/ADMIN.md](docs/ADMIN.md) | Roles, invites, content management, features, privacy |
+| [docs/CONTENT_GUIDE.md](docs/CONTENT_GUIDE.md) | Writing questions (console or Markdown) |
+| [docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) | Code tours and exercises |

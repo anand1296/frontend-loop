@@ -1,6 +1,11 @@
 # Architecture
 
-Frontend Loop is a static, client-rendered React application whose content is **compiled at build time**. There is no application server. Progress lives in the browser and, when the host provides it, in a private per-user document store.
+Frontend Loop is a client-rendered React application. It runs in two modes, chosen at boot (ADR-020):
+
+- **Local-only** (static hosting, single HTML file, claude.ai Artifact): content is **compiled at build time**; progress lives in the browser and, on claude.ai, in a private per-user document.
+- **Server mode** (with the Go backend): content, accounts, roles, settings and progress come from the Go API and Postgres.
+
+This document covers the frontend in depth. The backend, data model, API and operations are specified in [SPEC.md](SPEC.md) (§7–§16).
 
 ## 1. System context
 
@@ -15,6 +20,12 @@ Frontend Loop is a static, client-rendered React application whose content is **
 │  virtual modules ──▶ Vite / esbuild ──────┼─────▶│            data/users/<uid>/progress)       │
 │  (index + per-round chunks)               │      └─────────────────────────────────────────────┘
 └──────────────────────────────────────────┘
+
+server mode (run time)
+Browser ──GET /api/bootstrap──▶ Go API ──▶ Postgres (content, users, progress, settings)
+        ──GET /api/content/sections/<id> (ETag)
+        ──PUT /api/me/progress (merged response)
+        ──/api/admin/* (console)
 ```
 
 ## 2. Build-time content pipeline
@@ -43,7 +54,13 @@ virtual:content/section/<id>       export default { questionId: "<html>" }
 
 ```text
 src/
-  main.tsx                    boot: initPrefs → initProgress → initRouter → render <App/>
+  main.tsx                    boot: initPrefs → readLaunchParams → connectBackend (probe) → initProgress → initRouter → render <App/>
+  platform/                   api.ts (fetch client, CSRF header, ApiError) · backend.ts (server mode: bootstrap, user,
+                              flags, sign-in) · launch.ts (?invite / ?auth_error) · runtime.ts (claude.ai Artifact)
+  features/account/           sign-in dialog, invite dialog, sign-in errors, members-only screen, account settings
+  features/console/           admin console (server mode): content manager + question editor, learners, invites,
+                              features & settings, activity
+  features/admin/             owner dashboard for the claude.ai Artifact build
   app/App.tsx                 shell: sidebar, mobile drawer, top bar, view switch, global shortcuts
   app/Sidebar.tsx             navigation with per-round progress
   features/overview/          resume card, review card, loop ring, rounds list
@@ -64,7 +81,8 @@ src/
 
 - `state/progress.ts`, `lib/*` and `state/selectors.ts` are framework-free and fully unit-tested.
 - Components never construct progress state; they call `progressActions.*`.
-- Only `content/index.ts` imports the virtual module.
+- Only `content/index.ts` imports the virtual module. Components read content through `useContent()` (a store), so server content can replace it at boot and after admin edits.
+- Only `platform/*` talks to the network or the host runtime.
 
 ## 4. State model
 
@@ -73,7 +91,9 @@ src/
 | Progress (done, review stage/due, notes, last visit) | `progressStore` | localStorage `frontend-loop:progress:v1`, other tabs, optional cloud doc |
 | Preferences (theme, practice mode, filters) | `prefsStore` | localStorage `frontend-loop:prefs:v1` (device-only) |
 | Route (overview / review / admin / section + focused question) | `routeStore` | URL hash (bare token) |
-| Platform role (owner / learner / local) | `platformStore` | resolved from `window.claude` at boot |
+| Content (source, version, sections, lookups) | `contentStore` | bundled at build time, or from `/api/bootstrap` |
+| Server mode (user, role, site, feature flags, auth methods, lock) | `serverStore` | `/api/bootstrap`; refreshed after admin saves |
+| Platform role (owner / learner / local) | `platformStore` | resolved from `window.claude` at boot (Artifact build) |
 | Announcement | `announcementStore` | `config/announcement` (owner writes, everyone reads) |
 | Learner summary | derived by `computeSummary` | `learners/<uid>` (owner reads); see docs/ADMIN.md |
 | UI (open accordions, reveal state, dialog open) | component state | none |
@@ -106,6 +126,8 @@ Local-first: the UI only ever reads the in-memory store, which is hydrated from 
    - Local changes schedule a debounced (1.2s) full-document write; one write in flight at a time; a write is skipped when the last known remote copy already equals local state, which also prevents echo loops.
    - Pending writes flush when the tab becomes hidden.
    - Terminal errors (revoked, quota, not granted) stop sync and fall back to local-only with a visible status.
+
+4. **Server sync** (server mode, signed in): the same `syncWithRemote` protocol over `httpProgressDoc()`: GET on start, on tab focus and every 5 minutes while visible; PUT returns the server-merged document, which is applied as a snapshot (and not re-written). The browser remembers which account its local copy belongs to and never mixes two accounts; signing out flushes and clears it.
 
 **Why last-writer-wins per question:** one person's progress rarely conflicts; when it does (ticked on phone, unticked on laptop), the most recent intent should win. Reset writes "not done" tombstones with a fresh clock rather than deleting entries, so a reset beats older entries from other devices.
 
@@ -146,6 +168,7 @@ Hash routing with a single bare token (`#review`, `#react-internals`, `#oauth-pk
 ## 10. Security
 
 - Answer HTML is generated from repository Markdown at build time; raw HTML is escaped, links restricted to http(s)/relative/`#`, external links get `rel="noopener noreferrer"`. The output is injected with `dangerouslySetInnerHTML` without a runtime sanitizer, by design (see ADR-009).
+- In server mode, answer HTML is produced by the Go renderer when an admin saves, with the same rules (raw HTML escaped, link allow-list, escaped code), and the console preview injects the same server output. CSP `script-src 'self'` backs this up. Threat model: SPEC §12.
 - All persisted data is validated on read; imports are validated before merge.
 - No secrets, no third-party scripts besides Google Fonts CSS.
 
@@ -157,9 +180,12 @@ Hash routing with a single bare token (`#review`, `#react-internals`, `#oauth-pk
 | Content | `scripts/check-content.ts` | Every question's meta, TL;DR, ids, code languages |
 | Unit | `node --test` (zero dependencies) | Compiler, progress model, merge, parsing, search, selectors, cloud sync protocol |
 | E2E | Playwright (`e2e/`, desktop + Pixel 7 projects) | Tick/reload/resume, notes, search + deep links, practice mode, import + review + reset, filters, theme, skip link, mobile drawer and no horizontal overflow |
+| E2E full stack | Playwright `server` project + Go server + Postgres | Console content editing with live preview, publish, announcement, feature flag, invite → learner sign-in → sync to a second device → owner dashboard; refused stranger |
+| Backend | `go test` (+ real Postgres) | See SPEC §15 |
 
 ## 12. Trade-offs accepted
 
-- **No server:** no cross-device sync outside hosts that provide a per-user store; export/import covers the rest.
+- **Server optional:** local-only deployments have no cross-device sync outside hosts that provide a per-user store; export/import covers the rest. Deploy the Go backend for accounts and sync.
+- **Boot waits for one request** in the web build (the backend probe); the single-file build skips it.
 - **Content in the bundle:** ~1 MB of HTML in the single-file build (≈250 KB gzipped). Acceptable for a study app; the Vite build splits it per round.
 - **Custom store and router:** less ecosystem tooling (no Redux DevTools), but tiny and fully understood. Swap in TanStack Router/Zustand if the app grows.

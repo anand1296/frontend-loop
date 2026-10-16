@@ -4,8 +4,10 @@ import { defineConfig, devices } from '@playwright/test';
  * E2E tests run against the production build.
  * Locally:  npm run build && npm run test:e2e   (starts `vite preview` automatically)
  * Against any URL (e.g. a preview deploy): E2E_BASE_URL=https://… npm run test:e2e
+ * Full stack (Go API + Postgres, see e2e/server.spec.ts): E2E_SERVER_URL=http://localhost:8080 npx playwright test --project=server
  */
 const externalBaseUrl = process.env.E2E_BASE_URL;
+const serverUrl = process.env.E2E_SERVER_URL;
 
 export default defineConfig({
   testDir: 'e2e',
@@ -17,11 +19,15 @@ export default defineConfig({
     baseURL: externalBaseUrl ?? 'http://localhost:4173',
     trace: 'retain-on-failure',
   },
-  webServer: externalBaseUrl
+  webServer: externalBaseUrl || serverUrl
     ? undefined
     : { command: 'npx vite preview --port 4173 --strictPort', url: 'http://localhost:4173', reuseExistingServer: !process.env.CI },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: /mobile\.spec\.ts/ },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: /(mobile|server)\.spec\.ts/ },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, testMatch: /mobile\.spec\.ts/ },
+    // Runs only when a full stack is up (CI job "e2e-server").
+    ...(serverUrl
+      ? [{ name: 'server', use: { ...devices['Desktop Chrome'], baseURL: serverUrl }, testMatch: /server\.spec\.ts/ }]
+      : []),
   ],
 });

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { allQuestions, preloadSection, questionsById, sections, sectionsById, totalMinutes } from '../../content/index.ts';
+import { preloadSection, useContent } from '../../content/index.ts';
 import { LEVELS, LEVEL_LABEL } from '../../content/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { LoopRing } from '../../components/LoopRing.tsx';
@@ -9,19 +9,22 @@ import { progressStore } from '../../state/progressStore.ts';
 import { continueTarget, doneCount, dueQuestions } from '../../state/selectors.ts';
 import { navigate } from '../../state/route.ts';
 import { useStore } from '../../state/useStore.ts';
+import { useServer } from '../../platform/backend.ts';
 
 export function Overview() {
+  const { allQuestions, questionsById, sections, sectionsById, totalMinutes } = useContent();
   const state = useStore(progressStore, (s) => s);
+  const { features, site } = useServer();
   const [now] = useState(() => Date.now());
 
   const segments = useMemo(
     () => sections.map((section) => ({ section, done: doneCount(section.questions, state.questions) })),
-    [state.questions],
+    [sections, state.questions],
   );
   const done = segments.reduce((sum, s) => sum + s.done, 0);
   const total = allQuestions.length;
-  const due = useMemo(() => dueQuestions(allQuestions, state.questions, now), [state.questions, now]);
-  const target = useMemo(() => continueTarget(sections, state), [state]);
+  const due = useMemo(() => dueQuestions(allQuestions, state.questions, now), [allQuestions, state.questions, now]);
+  const target = useMemo(() => continueTarget(sections, state), [sections, state]);
   const targetQuestion = target ? questionsById.get(target.questionId) : undefined;
   const targetSection = target ? sectionsById.get(target.sectionId) : undefined;
 
@@ -35,7 +38,7 @@ export function Overview() {
       <header className="overview-hero">
         <div className="overview-intro">
           <p className="eyebrow">Senior · Lead · Principal frontend interviews</p>
-          <h1>Your interview loop, one round at a time.</h1>
+          <h1>{site.tagline || 'Your interview loop, one round at a time.'}</h1>
           <p className="lede">
             {plural(total, 'question')} across {sections.length} rounds, about {formatStudyTime(totalMinutes)} of study. Read the
             question, answer it out loud, then open it and compare. Tick it off when you could say it in the room.
@@ -76,6 +79,7 @@ export function Overview() {
             </div>
           )}
 
+          {features.review ? (
           <button type="button" className="action-card" onClick={() => navigate({ name: 'review' })}>
             <span className="action-label">Review</span>
             <span className="action-title">
@@ -86,7 +90,9 @@ export function Overview() {
               <Icon name="arrowRight" size={18} />
             </span>
           </button>
+          ) : null}
 
+          {features.levelOverview ? (
           <dl className="level-split">
             {byLevel.map(({ level, total: levelTotal, done: levelDone }) => (
               <div key={level}>
@@ -98,6 +104,7 @@ export function Overview() {
               </div>
             ))}
           </dl>
+          ) : null}
         </div>
       </section>
 

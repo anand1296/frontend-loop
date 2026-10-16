@@ -1,6 +1,11 @@
 # Content Guide
 
-All questions live in `content/*.md`, one file per round. Files are compiled at build time; `npm run content:check` validates everything and prints a summary table.
+Questions can be written in two places, with the same rules:
+
+- **The admin console** (deployments with the Go backend): Admin → Content. Live preview, drafts, history; changes are live immediately. See docs/ADMIN.md.
+- **`content/*.md` in the repository**, one file per round. They are compiled into static builds, seeded into a new database, and imported into an existing one with *Sync from repository*. `npm run content:check` validates everything and prints a summary table.
+
+The console's *Export* produces exactly this file format, so content can move between the two in either direction.
 
 ## File format
 
@@ -53,7 +58,13 @@ Lines in these blocks are plain `key: value`; a line starting with `#` is a comm
 
 ## Code blocks
 
-Supported fence languages: `ts`, `tsx`, `js`, `jsx`, `html`, `css`, `bash`/`sh`, `json`, `yaml`, `graphql`, `diff`, `http`, `text`. Anything else fails the build (add it in `build/content/markdown.ts`).
+Supported fence languages:
+
+- Frontend: `ts`/`typescript`, `tsx`, `js`/`javascript`, `jsx`, `html`, `xml`, `css`, `json`, `graphql`
+- Backend, data and cloud: `go`/`golang`, `sql`, `python`/`py`, `dockerfile`/`docker`, `proto`/`protobuf`, `hcl`/`terraform`/`tf`, `toml`, `ini`, `yaml`/`yml`
+- General: `bash`/`sh`/`shell`, `diff`, `http`, `text`/`txt`
+
+Anything else fails the build and is refused by the console. To add a language, add it to **both** `build/content/markdown.ts` and `backend/markdown/highlight.go`; a unit test fails if the two lists differ. (highlight.js has no HCL grammar, so Terraform is plain text in static builds and highlighted in server mode.)
 
 Code standards (same as the answers preach):
 - TypeScript first, strict-mode correct, no unnecessary `as` assertions. If an assertion is genuinely needed, say why in a note.
@@ -81,9 +92,21 @@ Use the parts that fit; not every question needs all of them.
 - Links must be `http(s)://`, `/path` or `#anchor`; others render as plain text.
 - Images render as their alt text.
 
+## Rules enforced by the console (and, for repository files, by the Go tests in CI)
+
+- Ids: kebab-case, at most 80 characters, unique across rounds **and** questions, and not one of `review`, `admin`, `console`, `invite`, `api`.
+- Titles are one line, at most 200 characters; round descriptions at most 300.
+- 1–12 tags, each at most 40 characters, no commas.
+- Inside an answer, use `###` or deeper: a `##` heading would start a new question in the file format.
+- Published answers need a `> [!TLDR]` callout and at least 200 characters. Drafts (console only) may be incomplete.
+
 ## Adding a round
+
+In the console: Admin → Content → *New round*, then *New question*.
+
+In the repository:
 
 1. Create `content/16-your-round.md` with front matter.
 2. Add questions.
 3. `npm run content:check`, then `npm run dev` and review in the browser.
-4. The new round appears in navigation, the overview ring, search and review automatically.
+4. The new round appears in navigation, the overview ring, search and review automatically. On a deployment with the backend, open Admin → Content → *Sync from repository* → *Add what's missing* after the deploy.

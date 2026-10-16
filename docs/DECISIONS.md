@@ -6,7 +6,7 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 
 ## ADR-001: React + TypeScript + Vite single-page app, not Next.js
 
-**Status:** Accepted
+**Status:** Accepted (still true in v2: the backend serves an API, not pages)
 
 **Context.** The app is a study tool used mostly behind no login, with static content and per-user state in the browser. SEO matters little (people find it by link), and hosting should be free and simple. The owner works daily with React, TypeScript and Vite.
 
@@ -31,7 +31,7 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 - (+) No parser or highlighter in the client; answers render instantly.
 - (+) Content errors fail CI with `file:line` messages.
 - (+) Files are readable on GitHub as plain Markdown (meta comments are invisible).
-- (−) Content changes require a rebuild/deploy. Fine for a curated bank.
+- (−) Content changes require a rebuild/deploy. Fine for a curated bank. *(v2: still true for static builds; server deployments edit content live, see ADR-016.)*
 
 ---
 
@@ -156,7 +156,7 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 
 ## ADR-011: Owner is super admin; sharing stays with claude.ai; learners share a summary only
 
-**Status:** Accepted
+**Status:** Accepted for the claude.ai Artifact build. For deployments with the Go backend, accounts, roles and invites are handled by ADR-014 and ADR-021.
 
 **Context.** The owner wants admin control and to invite others. Building our own accounts and invitations would need a backend, email delivery and auth. The host already authenticates viewers, manages sharing (Share menu, access levels) and offers a document store with per-path access rules.
 
@@ -167,3 +167,155 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 - (+) Privacy by design: the owner never sees notes or per-question data.
 - (−) Admin only works on the hosted version; self-hosting needs a backend implementing the same three documents.
 - (−) Viewers (and outside guests who aren't Editors) can't write, so they don't appear on the dashboard and their progress stays local.
+
+---
+
+## ADR-012: A Go backend on the standard library, no web framework
+
+**Status:** Accepted (v2)
+
+**Context.** The owner wants admin control over content and features, invites and cross-device progress on ordinary hosting, and wants to learn backend development in Go. The API is small (~40 endpoints), JSON only.
+
+**Decision.** Go 1.24 with `net/http`. Routing uses the Go 1.22+ `ServeMux` patterns (`PATCH /api/admin/sections/{id}`); middleware is plain `func(http.Handler) http.Handler`. Dependencies: `lib/pq` (Postgres driver), `goldmark` + `chroma` (Markdown and highlighting). Nothing else.
+
+**Consequences.**
+- (+) Everything a request does is readable top to bottom; no framework magic to learn first. The skills transfer to any Go codebase.
+- (+) Tiny dependency surface: fast builds, few CVEs, one static binary.
+- (−) A little boilerplate for JSON decoding and errors (two helpers cover it).
+- (−) No generated OpenAPI spec; the API is documented in docs/SPEC.md §9. Revisit if external clients appear.
+
+---
+
+## ADR-013: Postgres through database/sql and plain SQL; embedded, forward-only migrations
+
+**Status:** Accepted (v2)
+
+**Context.** Data is relational (users, sessions, invites, rounds, questions, revisions) with a few documents (progress, settings). Free hosting exists (Neon, Supabase). We need transactions, row locks and JSON.
+
+**Decision.** Postgres via `database/sql` + `lib/pq`, hand-written SQL in `backend/store`, one transaction per store method. Migrations are numbered `.sql` files embedded in the binary and applied at startup in one transaction under `pg_advisory_xact_lock`, recorded in `schema_migrations`. Migrations are additive and forward-only.
+
+**Consequences.**
+- (+) Queries are visible, reviewable and tuned by hand; no ORM abstractions to fight.
+- (+) Migrations travel with the code; a fresh database is ready on first request, and concurrent cold starts are serialized by the lock.
+- (−) More code than an ORM for CRUD; `sqlc` would generate typed query code if this grows.
+- (−) Forward-only means a bad migration is fixed by another migration, not a rollback; keep them small and backward compatible (expand, migrate, contract).
+
+---
+
+## ADR-014: GitHub OAuth and opaque server-side sessions in HttpOnly cookies (not JWTs)
+
+**Status:** Accepted (v2)
+
+**Context.** Users are engineers; we want no passwords, no email delivery and instant revocation (disable a user, demote an admin).
+
+**Decision.** Sign in with GitHub (OAuth web flow, no scopes; the access token is used once to read the profile and discarded). The server issues a random 256-bit session token in a `__Host-` prefixed, `HttpOnly`, `Secure`, `SameSite=Lax` cookie and stores only its SHA-256. Roles are read from the database on every request. A developer sign-in exists for local work and tests, refused in production.
+
+**Consequences.**
+- (+) Revocation is a `DELETE`; role changes apply on the next request. Nothing sensitive is readable by JavaScript.
+- (+) No password storage, reset flows or email.
+- (−) One session lookup per request (indexed primary key; cheap). Redis can cache it later.
+- (−) People without GitHub accounts can't sign in. Adding Google or magic links is an additive change behind the same `SignIn` function.
+
+---
+
+## ADR-015: CSRF defense in depth: SameSite=Lax, a custom header, and Origin/Sec-Fetch-Site checks
+
+**Status:** Accepted (v2)
+
+**Context.** Cookie sessions are vulnerable to cross-site request forgery.
+
+**Decision.** All state-changing requests must carry `X-Requested-With: frontend-loop` (a cross-site page can't set it without a CORS preflight, which the API never approves), must not be `Sec-Fetch-Site: cross-site`, and if an `Origin` header is present it must equal the app origin. Cookies are `SameSite=Lax`.
+
+**Consequences.**
+- (+) Three independent layers; any one stops classic CSRF. No token plumbing in forms.
+- (−) Non-browser clients must send the header (documented).
+
+---
+
+## ADR-016: Content lives in the database and is rendered at write time; repository Markdown stays the seed and export format
+
+**Status:** Accepted (v2)
+
+**Context.** Admins must add and change questions without a deploy, but the repository's Markdown bank has value: reviewable diffs, the static/Artifact builds, and a backup.
+
+**Decision.** In server mode, Postgres is the source of truth. The repository files are embedded in the binary, seeded once into an empty database, and can be re-imported ("Sync from repository": add missing or overwrite changed, never delete console content). Any round can be exported in the exact file format (zip for everything) to commit back. The Go renderer (goldmark + chroma, with highlight.js class names) renders Markdown to safe HTML when saving; a CI parity test compares its output on every answer with the TypeScript build renderer.
+
+**Consequences.**
+- (+) Live editing with drafts, history and preview, and still a git-friendly format both ways.
+- (+) Reads are cheap (stored HTML); preview equals published output.
+- (−) Two renderers to keep in sync; the parity test and a language-list test make drift a CI failure.
+- (−) The database and the repository can diverge; sync shows the differences and the admin decides.
+
+---
+
+## ADR-017: Progress is merged on the server; PUT returns the merged document; polling instead of WebSockets
+
+**Status:** Accepted (v2)
+
+**Context.** The browser already merges replicas with a per-question last-writer-wins rule. Serverless functions can't hold long-lived connections cheaply.
+
+**Decision.** `PUT /api/me/progress` merges the incoming document into the stored one under a row lock (same LWW rule, ported to Go and tested for commutativity and idempotence) and returns the result, which the client treats as a new snapshot. Clients re-read on focus and every 5 minutes while visible. The existing `syncWithRemote` protocol is reused through an HTTP `RemoteDoc` adapter.
+
+**Consequences.**
+- (+) One round trip saves and pulls; concurrent devices can't overwrite each other.
+- (+) Same client protocol for the Artifact and the Go API.
+- (−) Another device's change appears on focus, not instantly. Server-Sent Events (or Redis pub/sub) can push later (SPEC §18).
+
+---
+
+## ADR-018: One handler, two deployments (Vercel function and binary); lazy, retried initialization
+
+**Status:** Accepted (v2)
+
+**Context.** Free hosting favors Vercel (already serving the frontend), but the app should not be locked in, and should run in Docker, on a VPS or on AWS later.
+
+**Decision.** `server.New(...).Handler()` is a plain `http.Handler`. `cmd/server` wraps it with static file serving and graceful shutdown; `api/index.go` (the only file in `api/`, because Vercel turns each file there into a function) wraps it with `server.Vercel`, which initializes on the first request of a cold instance and retries failed starts (Neon may be waking up), and restores the original path from the `__route` rewrite. Packages live under `backend/` rather than `internal/` to avoid import restrictions in Vercel's build wrapper.
+
+**Consequences.**
+- (+) Portable: the Docker image is the AWS ECS/Fargate artifact later; Lambda can wrap the same handler.
+- (+) A missing database answers `503 not_configured` and the frontend falls back, so a half-configured deploy is still usable.
+- (−) Per-instance memory (rate limits, settings cache) is not shared across serverless instances; Redis fixes that (SPEC §18).
+
+---
+
+## ADR-019: Feature flags are a fixed list in code; new features ship as code
+
+**Status:** Accepted (v2)
+
+**Context.** The owner wants to "change a feature or add a new one". A flag only means something if code reads it.
+
+**Decision.** `backend/server/settings.go` defines the flags with labels and defaults (`review`, `search`, `notes`, `filters`, `progressTransfer`, `levelOverview`). Admins toggle them live; the server rejects unknown keys; the frontend reads them through `useFeature()`. Unset flags use their defaults; local-only mode has everything on. A genuinely new feature is a code change: push to `main` and Vercel deploys it in about a minute, ideally behind a new flag defaulting to off.
+
+**Consequences.**
+- (+) No dead or mistyped flags; each one is documented where it's defined.
+- (+) Clear, honest boundary between configuration and code.
+- (−) Adding a flag needs a deploy (by design).
+
+---
+
+## ADR-020: Graceful degradation: a boot probe chooses server or local-only mode
+
+**Status:** Accepted (v2)
+
+**Context.** The same frontend ships to Vercel with the backend, to static hosts without one, as a single HTML file and as a claude.ai Artifact.
+
+**Decision.** Before the first render the Vite build calls `GET /api/bootstrap` (10 s timeout). Only a JSON body with `mode: "server"` enables server mode; anything else (404, 503, HTML, network error, timeout) keeps v1 local-only behavior. The single-file build is compiled with `__BACKEND__ = false` and never probes. Content moved from module constants to a store so it can be swapped at boot and after edits.
+
+**Consequences.**
+- (+) One codebase, every hosting mode; a backend outage degrades instead of breaking.
+- (−) First paint in the web build waits for one request (a static "Loading…" splash covers it).
+
+---
+
+## ADR-021: CMS safety: optimistic concurrency, revisions, trash and an audit log
+
+**Status:** Accepted (v2)
+
+**Context.** Several admins may edit the same question; mistakes must be recoverable; the owner should see who changed what.
+
+**Decision.** Questions carry a `revision`; saves must send the revision they loaded, or get `409 conflict` with an option to load the newer version. Every update and delete first snapshots the row into `question_revisions` (no foreign key, so history survives deletion); deleted questions appear in Trash and restore as drafts. All content writes run under one advisory lock and bump `content_version`. Every administrative action and sign-up is appended to `audit_log`. Ids are permanent once created (progress is keyed by them).
+
+**Consequences.**
+- (+) No silent lost updates; every change is reversible and attributable.
+- (−) History grows without bound; prune or archive old revisions if it ever matters.
+- (−) No real-time co-editing; conflicts are detected, not merged.

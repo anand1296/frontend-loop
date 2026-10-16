@@ -1,13 +1,11 @@
 import { useDeferredValue, useMemo, useState, type KeyboardEvent } from 'react';
-import { questionsById, sections, sectionsById } from '../../content/index.ts';
+import { useContent } from '../../content/index.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog, InlineText, LevelChip } from '../../components/primitives.tsx';
 import { buildSearchIndex, searchQuestions } from '../../lib/search.ts';
 import { progressStore } from '../../state/progressStore.ts';
 import { navigate } from '../../state/route.ts';
 import { useStore } from '../../state/useStore.ts';
-
-const index = buildSearchIndex(sections);
 
 type Result =
   | { kind: 'question'; id: string }
@@ -19,11 +17,13 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   // Keep typing responsive even if result rendering ever gets heavy.
   const deferredQuery = useDeferredValue(query);
   const progress = useStore(progressStore, (s) => s.questions);
+  const { sections, sectionsById, questionsById } = useContent();
+  const index = useMemo(() => buildSearchIndex(sections), [sections]);
 
   const results = useMemo<Result[]>(() => {
     if (deferredQuery.trim() === '') return sections.map((s) => ({ kind: 'section', id: s.id }));
     return searchQuestions(index, deferredQuery, 40).map((hit) => ({ kind: 'question', id: hit.id }));
-  }, [deferredQuery]);
+  }, [deferredQuery, index, sections]);
 
   // Reset the highlighted row when the result set changes (state adjustment during render).
   const [lastResults, setLastResults] = useState(results);

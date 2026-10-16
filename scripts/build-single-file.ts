@@ -7,7 +7,12 @@
  *   dist-single/artifact.html       the same app as body content only, for hosts that
  *                                   wrap pages in their own <html>/<head> (claude.ai Artifacts)
  *
- * Usage: node scripts/build-single-file.ts
+ *   dist-web/                       (--web only) index.html + assets/app.{js,css}: a
+ *                                   multi-file, CSP-friendly build with backend detection
+ *                                   on, for serving next to the Go API without Vite
+ *                                   (`go run ./cmd/server -static dist-web`)
+ *
+ * Usage: node scripts/build-single-file.ts [--web]
  */
 import { build, type Plugin } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -47,7 +52,7 @@ const result = await build({
   jsx: 'automatic',
   minify: true,
   legalComments: 'none',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'false', 'import.meta.env': '{}' },
   plugins: [contentPlugin(content)],
   logLevel: 'warning',
 });
@@ -102,6 +107,39 @@ if (!artifact.trimEnd().endsWith('</script>')) throw new Error('artifact.html mu
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'frontend-loop.html'), fullDocument);
 writeFileSync(join(outDir, 'artifact.html'), artifact);
+
+if (process.argv.includes('--web')) {
+  const web = await build({
+    entryPoints: [join(root, 'src/main.tsx')],
+    bundle: true,
+    write: false,
+    outdir: join(root, 'dist-web/assets'),
+    entryNames: 'app',
+    format: 'iife',
+    platform: 'browser',
+    target: ['es2022'],
+    jsx: 'automatic',
+    minify: true,
+    legalComments: 'none',
+    define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'true', 'import.meta.env': '{}' },
+    plugins: [contentPlugin(content)],
+    logLevel: 'warning',
+  });
+  const webDir = join(root, 'dist-web');
+  mkdirSync(join(webDir, 'assets'), { recursive: true });
+  for (const file of web.outputFiles) writeFileSync(file.path, file.contents);
+  const page = [
+    '<!doctype html>\n<html lang="en">\n  <head>',
+    headInner.trimEnd(),
+    '    <link rel="stylesheet" href="assets/app.css" />',
+    '    <script defer src="assets/app.js"></script>',
+    '  </head>\n  <body>',
+    bodyInner.trimEnd(),
+    '  </body>\n</html>\n',
+  ].join('\n');
+  writeFileSync(join(webDir, 'index.html'), page);
+  console.log('  -> dist-web/ (multi-file build with backend detection)');
+}
 
 const questions = content.sections.reduce((sum, section) => sum + section.questions.length, 0);
 const kb = (text: string): string => `${(Buffer.byteLength(text) / 1024).toFixed(0)} KB`;

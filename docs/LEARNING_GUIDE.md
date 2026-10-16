@@ -1,6 +1,6 @@
 # Learning Guide: this codebase as a study project
 
-Frontend Loop is deliberately built with the techniques its answers teach. Use this guide two ways: as a **code tour** (read the file, then the question it illustrates) and as a list of **exercises** that extend the app and double as interview practice.
+Frontend Loop is deliberately built with the techniques its answers teach, in the React frontend and (since v2) in the Go backend. Use this guide two ways: as a **code tour** (read the file, then the question it illustrates) and as a list of **exercises** that extend the app and double as interview practice.
 
 ## Part 1: Code tour
 
@@ -28,6 +28,26 @@ Frontend Loop is deliberately built with the techniques its answers teach. Use t
 
 Suggested order: store → progress model → section page → answer loading → search → build pipeline → tests.
 
+### Backend tour (Go)
+
+Read in this order; each file is small and does one thing.
+
+| Read this | It demonstrates | Interview topic |
+| --- | --- | --- |
+| `cmd/server/main.go` | Composition root, config from env, `http.Server` timeouts, graceful shutdown with `signal.NotifyContext`, static file serving with cache headers and CSP | Running Go services in production |
+| `backend/server/server.go` | Go 1.22 `ServeMux` method/wildcard routing, middleware as `func(http.Handler) http.Handler`, panic recovery, one JSON error shape, mapping domain errors to status codes | HTTP API design, error handling |
+| `backend/server/session.go` | OAuth web flow with state cookie, opaque sessions, `__Host-` cookies, `context.WithValue` for the current user, authorization wrappers, open-redirect prevention | Auth: sessions vs JWT, CSRF, OAuth |
+| `backend/server/settings.go` | Typed settings with validation, a small TTL cache guarded by a mutex, fixed-window rate limiting, trusting proxies correctly | Caching, rate limiting, feature flags |
+| `backend/server/lazy.go` | Lazy initialization with retry (why `sync.Once` is wrong here), serverless entry, path rewriting | Serverless cold starts |
+| `backend/store/store.go` | `database/sql` pool sizing, transactions helper, migrations under an advisory lock | Connection pooling, schema migrations |
+| `backend/store/users.go` | One transaction for a business rule (sign-in + invite), `SELECT … FOR UPDATE`, hashing tokens at rest | Concurrency control, security |
+| `backend/store/content.go` | Optimistic concurrency (`revision`), snapshots before writes, `unnest … WITH ORDINALITY` for reordering, `REPEATABLE READ` read-only snapshot, version counter for cache invalidation | Isolation levels, consistency, caching |
+| `backend/store/progress.go` + `backend/progress/` | Server-side CRDT-style merge under a row lock; property tests (commutative, idempotent) | Offline-first sync, conflict resolution |
+| `backend/markdown/` | goldmark AST transformer (callouts), custom node renderers, sanitizing by construction, mapping chroma tokens to another highlighter's classes | Parsing, XSS prevention |
+| `backend/catalog/` | Domain model and validation shared by import, editor and export; round-trip testing | Domain modeling |
+| `backend/server/server_test.go` | Integration tests with `httptest` and a real Postgres, cookie jars per user, a fake OAuth provider, a concurrency race test | Testing strategy for services |
+| `api/index.go`, `vercel.json`, `Dockerfile` | Same handler on Vercel and in a distroless container | Deployment, containers |
+
 ## Part 2: Exercises (increasing difficulty)
 
 Each exercise lists what it practices. Do them as timed machine-coding sessions, then compare with the related answer.
@@ -49,14 +69,30 @@ Each exercise lists what it practices. Do them as timed machine-coding sessions,
 
 8. **Offline PWA.** Add a service worker (Workbox) with precached assets and an update prompt. *Practices: `#service-worker-strategies`.*
 9. **Search in a Web Worker** with a prebuilt inverted index generated at build time. *Practices: `#web-workers-offload`.*
-10. **Real backend sync.** Implement the `RemoteDoc` interface on Supabase or Firebase with auth; keep the same merge protocol; add conflict tests. *Practices: `#design-offline-first`, `#auth-token-storage-bff`.*
+10. **Real backend sync.** *(Done in v2 with the Go API: see `httpProgressDoc` in `src/state/persistence/cloudSync.ts`.)* Extend it: push changes with Server-Sent Events instead of polling on focus. *Practices: `#design-offline-first`, `#auth-token-storage-bff`.*
 11. **Observability.** Add `web-vitals` with attribution, an error reporter, and a tiny dashboard of your own study stats. *Practices: `#frontend-observability`, `#core-web-vitals-diagnosis`.*
 12. **AI follow-ups.** After you reveal an answer, generate one tough follow-up question with an LLM through a small backend; stream it in; never send secrets from the browser. *Practices: `#streaming-llm-ui`, `#incremental-markdown-rendering`.*
+
+### Full-stack track (backend, Go, data, cloud, AI)
+
+These follow the roadmap in docs/SPEC.md §18; each one is also a set of interview questions to add to the bank.
+
+15. **Tracks.** Implement `002_tracks.sql`, `track:` in front matter, `/admin/tracks` and a track switcher (SPEC §18.1). *Practices: additive migrations, backward-compatible formats.*
+16. **Redis rate limiting.** Replace the in-memory limiter with a Redis token bucket (Lua script, atomic). Load-test it with `hey` or `k6` across two instances. *Practices: distributed rate limiting, Redis data structures.*
+17. **Redis cache.** Cache the content outline and answers keyed by `content_version`; measure p95 before and after. *Practices: cache-aside, invalidation by versioned keys.*
+18. **Live updates with SSE.** `GET /api/events` streams content changes and announcements; use Redis pub/sub so it works across instances. *Practices: SSE vs WebSockets, fan-out.*
+19. **sqlc.** Generate typed query code from the SQL in `backend/store`; compare the diff in safety and readability. *Practices: code generation, type-safe data access.*
+20. **OpenTelemetry.** Trace a request from the browser through the API into SQL; export to a free tier (Grafana Cloud, Honeycomb). Define two SLOs. *Practices: observability, SLOs.*
+21. **Terraform on AWS.** `infra/` modules for VPC, ECS Fargate (the existing Docker image) behind an ALB, RDS Postgres, ElastiCache Redis, S3 + CloudFront for the frontend, Secrets Manager, ACM; GitHub Actions with OIDC running plan on PRs and apply on main. *Practices: IaC, least-privilege IAM, CI/CD.*
+22. **AI follow-ups.** After a learner reveals an answer, stream a tough follow-up question from an LLM through the Go API (keys server-side, per-user quota in Redis, prompt and response logged for evals). *Practices: streaming, cost control, safety.*
+23. **Semantic search.** Embed every answer (pgvector), hybrid ranking with the existing keyword search, an eval set of 30 queries. *Practices: RAG, evaluation.*
 
 ### Principal-level reflection
 
 13. Write an ADR proposing a migration of this app to Next.js with RSC. Argue honestly whether it's worth it (see ADR-001), with metrics you'd use to decide.
 14. Write the RFC for turning the content compiler into a shared internal package used by three other teams' docs sites.
+24. Write the ADR for moving from Vercel + Neon to AWS: cost at 100, 10k and 1M monthly users, operational load, lock-in, and what you'd measure before deciding.
+25. Design multi-tenancy (many organizations, each with its own content and admins) and write the migration plan from today's single-tenant schema.
 
 ## Part 3: How to study with the app
 

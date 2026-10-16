@@ -1,4 +1,5 @@
 import { memo, Suspense, useEffect, useRef, useState } from 'react';
+import { useFeature } from '../../platform/backend.ts';
 import { loadAnswers } from '../../content/index.ts';
 import type { QuestionMeta } from '../../content/types.ts';
 import { Icon } from '../../components/Icon.tsx';
@@ -114,6 +115,7 @@ export const QuestionItem = memo(function QuestionItem({
   variant = 'study',
 }: QuestionItemProps) {
   const progress = useStore(progressStore, (s) => s.questions[question.id]);
+  const notesOn = useFeature('notes');
   const done = progress?.done ?? false;
   const [revealed, setRevealed] = useState(false);
   const plainTitle = question.title.replace(/`/g, '');
@@ -152,6 +154,7 @@ export const QuestionItem = memo(function QuestionItem({
               <InlineText text={question.title} />
             </span>
             <span className="q-meta">
+              {question.published === false ? <span className="draft-chip">Draft</span> : null}
               <LevelChip level={question.level} />
               <span>{question.minutes} min</span>
               {variant === 'review' && progress?.dueAt ? (
@@ -208,7 +211,7 @@ export const QuestionItem = memo(function QuestionItem({
                   ) : null}
                 </div>
               )}
-              <Notes id={question.id} />
+              {notesOn ? <Notes id={question.id} /> : null}
             </div>
           </>
         ) : null}
