@@ -115,6 +115,8 @@ export function QuestionEditor({ content, questionId, defaultSectionId, onClose,
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<Revision[] | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  /** The id this editor just created: it already holds that record, so it must not reload it (a late reload would clobber edits made meanwhile). */
+  const createdId = useRef<string | null>(null);
   const formId = useId();
 
   const effective: QuestionInput = useMemo(
@@ -131,7 +133,7 @@ export function QuestionEditor({ content, questionId, defaultSectionId, onClose,
 
   // Load the question being edited.
   useEffect(() => {
-    if (isNew || !questionId) return;
+    if (isNew || !questionId || questionId === createdId.current) return;
     let cancelled = false;
     consoleApi.question(questionId).then(
       (record) => {
@@ -205,6 +207,7 @@ export function QuestionEditor({ content, questionId, defaultSectionId, onClose,
     setProblems({});
     try {
       const record = isNew ? await consoleApi.createQuestion(input) : await consoleApi.updateQuestion({ ...input, revision });
+      if (isNew) createdId.current = record.id;
       const next: QuestionInput = { ...input, tags: record.tags, body: record.body };
       setForm(next);
       setSaved(next);
