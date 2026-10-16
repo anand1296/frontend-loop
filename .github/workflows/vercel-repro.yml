@@ -9,15 +9,22 @@ jobs:
       fail-fast: false
       matrix:
         node: ['22', '24']
+        variant: ['plain', 'no-git-no-dotgithub', 'node-env-production']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Variant setup
+        run: |
+          if [ "${{ matrix.variant }}" = "no-git-no-dotgithub" ]; then rm -rf .git .github; fi
       - run: npm install --no-audit --no-fund
+        env:
+          NODE_ENV: ${{ matrix.variant == 'node-env-production' && 'production' || '' }}
       - run: node -v && npm ls vite marked highlight.js react typescript 2>&1 | head -20
       - run: npm run build:web
         env:
+          NODE_ENV: ${{ matrix.variant == 'node-env-production' && 'production' || '' }}
           VERCEL: '1'
           CI: '1'
           VERCEL_GIT_COMMIT_SHA: ead15e4306d1b8eca905a8ad72bfe402d32dd169
