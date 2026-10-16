@@ -8,8 +8,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22', '24']
-        variant: ['plain', 'no-git-no-dotgithub', 'node-env-production']
+        node: ['22']
+        variant: ['no-git-no-dotgithub', 'node-env-production']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,7 +22,8 @@ jobs:
         env:
           NODE_ENV: ${{ matrix.variant == 'node-env-production' && 'production' || '' }}
       - run: node -v && npm ls vite marked highlight.js react typescript 2>&1 | head -20
-      - run: npm run build:web
+      - run: |
+          npm run build:web > out.txt 2>&1 || { echo "::error::$(grep -v '^    at' out.txt | tail -c 1200 | tr '\n' '~' | tr -d '%')"; exit 1; }
         env:
           NODE_ENV: ${{ matrix.variant == 'node-env-production' && 'production' || '' }}
           VERCEL: '1'
