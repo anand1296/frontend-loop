@@ -71,7 +71,8 @@ Privacy: admins see this summary only. Notes, review dates and per-question hist
 Admin → **Features & settings**:
 
 - **Announcement:** message, tone (info, good news, heads-up), optional link (`https://…` or `#round-id`). Shown at the top of the app until each person dismisses it. *Clear current* removes it.
-- **Features:** switch built-in features on or off for everyone, instantly: Spaced review, Search, Personal notes, Round filters, Export and import, Level breakdown.
+- **Features:** switch built-in features on or off for everyone, instantly: Spaced review, Search, Personal notes, Round filters, Export and import, Level breakdown, Email reminders.
+- **Email reminders** are opt-in per person (Settings → Email reminders, default off; daily, every 3 days or weekly). Turning the feature off here stops all reminder emails. Sending needs the SMTP settings and `CRON_SECRET` (docs/DEPLOYMENT.md §1.7). You never see people's email addresses.
 - **Site & access** (owner): app name, overview headline, registration, content access.
 
 ### Changing or adding features themselves

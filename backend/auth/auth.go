@@ -46,6 +46,8 @@ type GitHubUser struct {
 	Login     string `json:"login"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatar_url"`
+	// Email is the primary, verified address (needs the user:email scope); "" if unavailable.
+	Email string `json:"-"`
 }
 
 // GitHub implements the OAuth web application flow. Endpoints are fields so
@@ -74,11 +76,15 @@ func NewGitHub(clientID, clientSecret string) *GitHub {
 // Configured reports whether credentials are present.
 func (g *GitHub) Configured() bool { return g != nil && g.ClientID != "" && g.ClientSecret != "" }
 
-// AuthCodeURL is where the browser goes to approve the app. No scopes: we only
-// need the public profile, which every token can read.
+// Scope asks only for the profile plus email addresses (read-only), so email
+// reminders go to an address GitHub has verified. Nothing else is accessible.
+const Scope = "user:email"
+
+// AuthCodeURL is where the browser goes to approve the app.
 func (g *GitHub) AuthCodeURL(state, redirectURI string) string {
 	q := url.Values{}
 	q.Set("client_id", g.ClientID)
+	q.Set("scope", Scope)
 	q.Set("redirect_uri", redirectURI)
 	q.Set("state", state)
 	q.Set("allow_signup", "true")
@@ -128,7 +134,34 @@ func (g *GitHub) Exchange(ctx context.Context, code, redirectURI string) (GitHub
 	if user.ID == 0 || user.Login == "" {
 		return GitHubUser{}, fmt.Errorf("%w: empty profile", ErrOAuth)
 	}
+	user.Email = g.primaryEmail(ctx, token.AccessToken)
 	return user, nil
+}
+
+// primaryEmail returns the user's primary verified address, or "" (scope not
+// granted, API error): reminders are optional, so this never fails sign-in.
+func (g *GitHub) primaryEmail(ctx context.Context, accessToken string) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.APIURL+"/user/emails", nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+	if err := g.do(req, &emails); err != nil {
+		return ""
+	}
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email
+		}
+	}
+	return ""
 }
 
 func (g *GitHub) do(req *http.Request, into any) error {

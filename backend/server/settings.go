@@ -60,6 +60,7 @@ var Features = []Feature{
 	{"filters", "Round filters", "Status and level filters on each round page.", true},
 	{"progressTransfer", "Export and import", "Progress export/import in Settings.", true},
 	{"levelOverview", "Level breakdown", "The Senior / Lead / Principal progress cards on the overview.", true},
+	{"emailReminders", "Email reminders", "Lets people opt in to progress reminders by email (each person chooses, default off). Needs SMTP settings on the server.", true},
 }
 
 func featureFlags(stored map[string]bool) map[string]bool {

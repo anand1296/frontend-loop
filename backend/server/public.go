@@ -76,6 +76,7 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 		"features":     snap.features,
 		"announcement": snap.announcement,
 		"auth":         map[string]bool{"github": s.github.Configured(), "dev": s.cfg.DevLogin},
+		"email":        s.mailer.Configured(),
 		"user":         nil,
 		"content":      nil,
 		"locked":       false,

@@ -759,7 +759,8 @@ fieldset {
   overflow-wrap: anywhere;
 }
 
-.auth-card a {
+/* Text links only: buttons rendered as <a> (e.g. "Continue with GitHub") keep their own colors. */
+.auth-card a:not(.btn) {
   color: var(--accent);
   font-weight: 600;
 }
