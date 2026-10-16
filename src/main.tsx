@@ -1,0 +1,27 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { App } from './app/App.tsx';
+import { initPrefs } from './state/prefs.ts';
+import { initProgress } from './state/progressStore.ts';
+import { initRouter } from './state/route.ts';
+import { initAnnouncement } from './features/announcement/announcement.ts';
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/layout.css';
+import './styles/components.css';
+import './styles/prose.css';
+
+// Hydrate stores before the first render so the first frame is already correct.
+initPrefs();
+initProgress();
+initRouter();
+void initAnnouncement();
+
+const container = document.getElementById('root');
+if (!container) throw new Error('Missing #root element');
+
+createRoot(container).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

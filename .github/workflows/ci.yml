@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-audit --no-fund
+      - name: Validate content
+        run: npm run content:check
+      - name: Type check
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build (Vite, code-split)
+        run: npx vite build
+      - name: Build (single file)
+        run: npm run build:single
+      - name: E2E (Playwright, against vite preview)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-loop-single-file
+          path: dist-single/frontend-loop.html

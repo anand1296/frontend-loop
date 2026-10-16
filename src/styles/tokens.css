@@ -1,0 +1,119 @@
+/*
+ * Design tokens. Layout concept: a quiet study desk. Left rail lists the rounds of
+ * the loop, the main column is a single readable track of questions, and one
+ * cobalt accent marks what to do next. Done is green, due-for-review is amber.
+ */
+:root {
+  --paper: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eceff5;
+  --ink: #161b2e;
+  --ink-2: #464e66;
+  --ink-3: #6f7690;
+  --line: #dde1ea;
+  --line-strong: #c9cfdc;
+  --accent: #3346d3;
+  --accent-ink: #ffffff;
+  --accent-soft: #e5e8fb;
+  --done: #1d7f55;
+  --done-soft: #ddf1e6;
+  --due: #a35f00;
+  --due-soft: #fbedd5;
+  --danger: #b4323a;
+  --code-bg: #f0f2f7;
+  --code-ink: #1f2537;
+  --shadow: 0 1px 2px rgb(22 27 46 / 0.06), 0 8px 24px -12px rgb(22 27 46 / 0.18);
+  --backdrop: rgb(14 18 32 / 0.45);
+
+  /* syntax */
+  --hl-keyword: #7a2fb5;
+  --hl-string: #1d7a4a;
+  --hl-number: #b0420e;
+  --hl-comment: #727a92;
+  --hl-title: #2140c4;
+  --hl-type: #a0571a;
+  --hl-attr: #9b2d64;
+  --hl-meta: #5b6478;
+
+  --font-display: 'Bricolage Grotesque', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: 1.75rem;
+  --step-4: clamp(2rem, 1.4rem + 2.4vw, 2.75rem);
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --rail: 288px;
+  --measure: 46rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #0e1220;
+    --surface: #151a2a;
+    --surface-2: #1c2235;
+    --ink: #e6e9f2;
+    --ink-2: #b1b8cc;
+    --ink-3: #868ea6;
+    --line: #262d42;
+    --line-strong: #353d57;
+    --accent: #95a3ff;
+    --accent-ink: #0e1220;
+    --accent-soft: #232a50;
+    --done: #55c896;
+    --done-soft: #14362a;
+    --due: #f0b24f;
+    --due-soft: #3a2b12;
+    --danger: #f08a8f;
+    --code-bg: #0a0e19;
+    --code-ink: #dde2ee;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+    --backdrop: rgb(4 6 12 / 0.65);
+    --hl-keyword: #c79bff;
+    --hl-string: #8fd6a6;
+    --hl-number: #ffad80;
+    --hl-comment: #7c849c;
+    --hl-title: #8fb0ff;
+    --hl-type: #f2c27a;
+    --hl-attr: #f09ac3;
+    --hl-meta: #9aa3b8;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: #0e1220;
+  --surface: #151a2a;
+  --surface-2: #1c2235;
+  --ink: #e6e9f2;
+  --ink-2: #b1b8cc;
+  --ink-3: #868ea6;
+  --line: #262d42;
+  --line-strong: #353d57;
+  --accent: #95a3ff;
+  --accent-ink: #0e1220;
+  --accent-soft: #232a50;
+  --done: #55c896;
+  --done-soft: #14362a;
+  --due: #f0b24f;
+  --due-soft: #3a2b12;
+  --danger: #f08a8f;
+  --code-bg: #0a0e19;
+  --code-ink: #dde2ee;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  --backdrop: rgb(4 6 12 / 0.65);
+  --hl-keyword: #c79bff;
+  --hl-string: #8fd6a6;
+  --hl-number: #ffad80;
+  --hl-comment: #7c849c;
+  --hl-title: #8fb0ff;
+  --hl-type: #f2c27a;
+  --hl-attr: #f09ac3;
+  --hl-meta: #9aa3b8;
+  color-scheme: dark;
+}
