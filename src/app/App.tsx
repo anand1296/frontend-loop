@@ -5,7 +5,8 @@ import { Dialog } from '../components/primitives.tsx';
 import { Overview } from '../features/overview/Overview.tsx';
 import { ReviewPage } from '../features/review/ReviewPage.tsx';
 import { AdminPage } from '../features/admin/AdminPage.tsx';
-import { AuthErrorDialog, InviteDialog, LockedPage, SignInDialog } from '../features/account/Account.tsx';
+import { AuthErrorDialog, InviteDialog, SignInDialog } from '../features/account/Account.tsx';
+import { SetupScreen, SignInScreen } from '../features/account/Gate.tsx';
 import { ConsolePage } from '../features/console/ConsolePage.tsx';
 import { useServer } from '../platform/backend.ts';
 import { AnnouncementBanner } from '../features/announcement/AnnouncementBanner.tsx';
@@ -22,11 +23,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 function View({ route }: { route: Route }) {
   const { sectionsById } = useContent();
-  const { mode, locked, features } = useServer();
-  if (mode === 'server') {
-    if (route.name === 'admin') return <ConsolePage />;
-    if (locked) return <LockedPage />;
-  }
+  const { mode, features } = useServer();
+  if (mode === 'server' && route.name === 'admin') return <ConsolePage />;
   if (route.name === 'review' && features.review) return <ReviewPage />;
   if (route.name === 'admin') return <AdminPage />;
   if (route.name === 'section') {
@@ -39,7 +37,19 @@ function View({ route }: { route: Route }) {
   return <Overview />;
 }
 
+/**
+ * Gates first: a deployed-but-unconfigured backend shows the setup checklist;
+ * a members-only site (the default) shows the sign-in screen to visitors.
+ * Everyone else gets the app.
+ */
 export function App() {
+  const { mode, locked, user } = useServer();
+  if (mode === 'setup') return <SetupScreen />;
+  if (mode === 'server' && locked && !user) return <SignInScreen />;
+  return <AppShell />;
+}
+
+function AppShell() {
   const route = useStore(routeStore, (r) => r);
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);

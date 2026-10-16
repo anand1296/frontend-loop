@@ -299,7 +299,9 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 
 **Context.** The same frontend ships to Vercel with the backend, to static hosts without one, as a single HTML file and as a claude.ai Artifact.
 
-**Decision.** Before the first render the Vite build calls `GET /api/bootstrap` (10 s timeout). Only a JSON body with `mode: "server"` enables server mode; anything else (404, 503, HTML, network error, timeout) keeps v1 local-only behavior. The single-file build is compiled with `__BACKEND__ = false` and never probes. Content moved from module constants to a store so it can be swapped at boot and after edits.
+**Decision.** Before the first render the Vite build calls `GET /api/bootstrap` (10 s timeout). A JSON body with `mode: "server"` enables server mode. A `503` carrying a `setup` report (the API exists but has no database, or can't reach it) shows a **setup screen** with a configuration checklist and a "Study offline for now" button. Anything else (404, HTML, network error, timeout: no API here) keeps v1 local-only behavior.
+
+*Revised in v2.1:* the first version fell back to local-only on any 503 too. On a freshly deployed but unconfigured Vercel project that meant Settings said "saved in this browser, use export and import" with no hint that a backend existed and needed configuring. A deployed-but-unconfigured backend is now visible instead of silent. The single-file build is compiled with `__BACKEND__ = false` and never probes. Content moved from module constants to a store so it can be swapped at boot and after edits.
 
 **Consequences.**
 - (+) One codebase, every hosting mode; a backend outage degrades instead of breaking.
@@ -319,3 +321,19 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 - (+) No silent lost updates; every change is reversible and attributable.
 - (−) History grows without bound; prune or archive old revisions if it ever matters.
 - (−) No real-time co-editing; conflicts are detected, not merged.
+
+---
+
+## ADR-022: Private by default: members-only and invite-only, with a full-page sign-in screen
+
+**Status:** Accepted (v2.1)
+
+**Context.** v2 shipped with content public by default (sign-in only synced progress). The owner's intent is a private study group: people should start at a sign-in screen, the owner signs in as super admin, and everyone else comes in through invites.
+
+**Decision.** The default site settings are `contentAccess: "members"` and `registration: "invite"`. A signed-out visitor of a members-only site gets a full-page `SignInScreen` (no sidebar or content), which also presents invite links ("@anand1296 invited you to join as a learner") and sign-in errors inline. The owner can open the site up in Features & settings → Site & access. Identity stays with GitHub OAuth: the "super admin credentials" are the GitHub account named in `OWNER_GITHUB_LOGIN`; there are no passwords to store or leak.
+
+**Consequences.**
+- (+) Matches the product's use (a curated group) and leaks nothing to anonymous visitors.
+- (+) One clear entry point; the invite flow and the owner flow are the same screen.
+- (−) Trying the app requires an invite; the owner can switch content access to public for an open demo.
+- (−) Existing deployments that saved explicit settings keep them (only the default changed).

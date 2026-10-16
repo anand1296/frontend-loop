@@ -16,7 +16,7 @@ There are two ways the app can be hosted, and admin works differently in each:
 | **Owner** (super admin) | The GitHub account in `OWNER_GITHUB_LOGIN` (`anand1296`) | Everything below, plus: change anyone's role, manage admins, invite admins, site settings (name, headline, registration, content access). Can't be disabled or demoted from the app. |
 | **Admin** | People the owner promotes or invites as admin | All content editing, learner dashboard, learner invites, disable/remove learners, feature flags, announcements, activity log |
 | **Learner** | Invited people (or anyone, if registration is open) | Study with progress synced across devices; delete their own account |
-| Anonymous | Not signed in | Study with progress in the browser (unless the site is members-only) |
+| Anonymous | Not signed in | Sees only the sign-in screen (default, members-only). If the owner makes content public: study with progress in the browser |
 
 Full matrix: docs/SPEC.md §2.5.
 
@@ -28,7 +28,11 @@ Admin → **Invites** → choose *who it's for* (a note only admins see), *joins
 - The person opens the link, sees who invited them, and signs in with GitHub. Their account is created with the invite's role.
 - Returning users never need a link again.
 - **Registration** (owner, Features & settings → Site & access): *Only people with an invite link* (default) or *Anyone with a GitHub account*.
-- **Content access**: *Everyone* (sign-in only syncs progress) or *Signed-in members only*.
+- **Content access**: *Signed-in members only* (default: visitors land on the sign-in screen) or *Everyone* (sign-in only syncs progress).
+
+### Your super admin "credentials"
+
+There is no admin password. You are the super admin because you sign in with the GitHub account named in `OWNER_GITHUB_LOGIN` (`anand1296`). Protect that GitHub account (2FA) and you've protected the app. To hand ownership to someone else, change the variable and redeploy; you become an admin.
 
 ### Managing content (no code, no deploy)
 

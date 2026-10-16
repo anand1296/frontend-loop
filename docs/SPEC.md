@@ -72,7 +72,7 @@ Senior+ interview preparation spans many areas (language internals, frameworks, 
 1. Interview-grade answers, consistently structured.
 2. Effortless progress: tick, resume, review.
 3. Retention: spaced review and practice-before-reveal.
-4. Simple and fast: no setup to study; accounts are optional unless the site is members-only.
+4. Simple and fast. A deployment with a backend is private by default: visitors start at a sign-in screen and only invited people get in. Local-only builds (static host, single file, Artifact) need no account at all.
 5. Admin can change content and switch features **without touching code**; anything else is a normal code change deployed by pushing to `main`.
 6. The codebase is itself a learning project: it demonstrates what the answers teach, frontend and now backend.
 
@@ -134,7 +134,9 @@ IDs are stable; tests and ADRs refer to them.
 | FR-21 | First sign-in: the owner login always succeeds; otherwise a valid invite is required unless registration is "open". Returning users don't need an invite. |
 | FR-22 | Invite links: role (learner, or admin when created by the owner), max uses (1–1000), expiry (1–90 days), optional note. Shown once; revocable. The invite page explains who invited you and for what role. |
 | FR-23 | Sessions last 30 days; sign out ends the session and clears this device's local copy of progress. |
-| FR-24 | Content access "public" (anyone reads; sign in to sync) or "members" (sign in to read). |
+| FR-24 | Content access "members" (**default**: visitors see only a full-page sign-in screen) or "public" (anyone reads; signing in only syncs progress). |
+| FR-28 | Sign-in screen first: on a members-only site a signed-out visitor sees a full-page sign-in screen (no app shell). It shows the invite (who invited you, which role) when opened from an invite link, and sign-in errors inline. |
+| FR-29 | Setup screen: when the API is deployed but not configured (no database) or its database is unreachable, everyone sees a checklist of which settings are present (database, super admin, GitHub sign-in, app URL; booleans only, never values) with "Check again" and "Study offline for now". The app never pretends to sync when it can't. |
 | FR-25 | Signed-in progress syncs across devices; anonymous progress done before first sign-in is adopted into the account; a device never mixes two accounts' progress. |
 | FR-26 | Users can delete their account and synced data. |
 | FR-27 | Sign-in errors (not invited, disabled, cancelled, expired) are explained in plain language. |
@@ -167,7 +169,7 @@ IDs are stable; tests and ADRs refer to them.
 | --- | --- | --- |
 | Performance | Static mode: no network for content. Server mode: one boot request; answers fetched per round and cached; repeat fetches revalidate with ETag (304). | §13 |
 | Latency budgets | API p95 < 300 ms warm on Vercel + Neon in the same region; cold start < 3 s including migrations check. | Pool limits, lazy init, small queries |
-| Availability | A backend outage or missing configuration must not break studying. | Boot probe falls back to local-only mode; the Vercel function answers 503 `not_configured` cleanly |
+| Availability | A backend outage or missing configuration must not break studying, and must be visible rather than silent. | The API answers `503` with a setup checklist (`not_configured` / `unavailable`); the app shows the setup screen with a "Study offline for now" escape hatch |
 | Security | OWASP ASVS L1 intent: no stored XSS, CSRF, session fixation, open redirects, credential storage. | §12 |
 | Privacy | Admins never see notes or per-question data; no analytics; account deletion removes progress. | Summaries computed server-side from the doc; `DELETE /api/me` |
 | Accessibility | WCAG 2.2 AA intent for learner and admin UIs. | Semantic accordion, ARIA tabs and combobox, labelled fields, visible focus, keyboard-only flows tested |
@@ -257,11 +259,17 @@ main.tsx
   initPrefs()                       theme etc. from localStorage
   readLaunchParams()                consume ?invite= and ?auth_error=, strip them from the URL
   connectBackend()                  GET /api/bootstrap (10 s timeout) if __BACKEND__ is true
-     ├─ JSON with mode:"server" → server mode: set content, user, site, features, announcement
-     └─ anything else            → local-only mode (unchanged v1 behavior)
+     ├─ 200 JSON mode:"server"            → server mode: content, user, site, features, announcement
+     ├─ 503 JSON {error, setup}           → setup mode: API deployed but not configured / DB unreachable
+     └─ anything else (404, HTML, network) → local-only mode (no API here: unchanged v1 behavior)
   initProgress({serverUserId})      hydrate from localStorage, start the right sync
   initRouter(); initAnnouncement()
   render <App/>
+
+<App/> gates before the shell:
+  setup mode                          → <SetupScreen/>   checklist, "Check again", "Study offline for now"
+  server mode, members-only, signed out → <SignInScreen/>  GitHub (and dev) sign-in, invite note, errors
+  otherwise                           → the app (sidebar, pages, console)
 ```
 
 `__BACKEND__` is a build-time constant: `true` in the Vite web build, `false` in the single-file/Artifact build (which never probes).
@@ -338,7 +346,7 @@ recover → security headers → access log → CSRF guard → session → Serve
 
 ### 7.4 Startup and serverless behavior
 
-`Build()` connects (10 s ping timeout), runs migrations under a Postgres advisory lock, parses the embedded repository content and seeds the database **once** (a `seeded` marker in `settings`; deleting everything later never re-seeds). On Vercel, `server.Vercel(cfg)` wraps this in `Lazy`: initialization happens on the first request of a cold instance and is retried (at most every 3 s) if it failed, so a database that is waking up (Neon scales to zero) does not poison the instance. Without `DATABASE_URL` it answers `503 not_configured` and the frontend runs local-only.
+`Build()` connects (10 s ping timeout), runs migrations under a Postgres advisory lock, parses the embedded repository content and seeds the database **once** (a `seeded` marker in `settings`; deleting everything later never re-seeds). On Vercel, `server.Vercel(cfg)` wraps this in `Lazy`: initialization happens on the first request of a cold instance and is retried (at most every 3 s) if it failed, so a database that is waking up (Neon scales to zero) does not poison the instance. Without `DATABASE_URL` it answers `503 {error:{code:"not_configured"}, setup:{database,github,owner,appUrl}}` (booleans only) and the frontend shows the setup screen; if the database can't be reached it answers `503 unavailable` with the same checklist. `cmd/server` behaves the same when started without `DATABASE_URL`.
 
 `vercel.json` rewrites `/api/:path*` to `/api/index?__route=:path*`; `rewrite()` restores the original path before routing.
 
@@ -406,7 +414,7 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | Method & path | Auth | Purpose / response |
 | --- | --- | --- |
 | `GET /health` | none | `{ok, database, version, github}`; 503 if the database is unreachable |
-| `GET /bootstrap` | optional | `{mode:"server", user, site, features, announcement, auth:{github,dev}, locked, content:{version, sections:[…]}}`; drafts included for admins; `content:null, locked:true` for anonymous visitors of a members-only site |
+| `GET /bootstrap` | optional | `{mode:"server", user, site, features, announcement, auth:{github,dev}, locked, content:{version, sections:[…]}}`; drafts included for admins; `content:null, locked:true` for anonymous visitors of a members-only site (the default). Unconfigured deployment: `503 {error:{code:"not_configured"|"unavailable"}, setup:{database, github, owner, appUrl}}` |
 | `GET /content/sections/{id}` | per site access | `{version, answers:{questionId: html}}` with ETag/304 |
 | `GET /invites/{token}` | none (rate-limited) | `{status: active·used·expired·revoked·invalid, role, invitedBy, expiresAt, siteName}` |
 | `GET /auth/github/start?invite=&next=#route` | none (rate-limited) | 302 to GitHub; sets a 10-minute HttpOnly state cookie |
@@ -538,7 +546,7 @@ Admins see per-learner summaries computed on the server (done counts per round, 
   - progress merges lock the user's row (`SELECT … FOR UPDATE`);
   - invite consumption locks the invite row;
   - migrations and seeding take their own advisory locks, so parallel cold starts are safe.
-- **Degradation:** no backend, 503, timeout or network error at boot → local-only mode. Sync errors keep progress in the browser and show the status. Unknown server errors never leak details.
+- **Degradation:** no API at boot (404, network error, timeout) → local-only mode; API present but unconfigured or database down (503 with a setup report) → setup screen with a "study offline" option. Sync errors keep progress in the browser and show the status. Unknown server errors never leak details.
 - **Timeouts:** client requests 20 s (boot 10 s); GitHub calls 10–15 s; server read/write timeouts in the binary; Vercel function max 30 s.
 
 ---
@@ -598,7 +606,8 @@ Full records with context and consequences: [DECISIONS.md](DECISIONS.md).
 | 017 | Progress merge on the server; PUT returns the merged document; polling instead of WebSockets |
 | 018 | One handler, two deployments (Vercel function, binary); lazy retried init; no `internal/` |
 | 019 | Feature flags are a fixed list in code; new features ship as code |
-| 020 | Graceful degradation: a boot probe chooses server or local-only mode |
+| 020 | Graceful degradation: a boot probe chooses server, setup or local-only mode |
+| 022 | Private by default: members-only and invite-only, with a full-page sign-in screen |
 | 021 | CMS safety: optimistic concurrency, revisions, trash, audit log |
 
 ---

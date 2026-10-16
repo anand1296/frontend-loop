@@ -14,6 +14,13 @@ func TestVercelEntryWithoutDatabase(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "not_configured") {
 		t.Fatalf("got %d %s", rec.Code, rec.Body.String())
 	}
+	// The setup checklist names what is missing, never a value.
+	rec = httptest.NewRecorder()
+	Vercel(Config{GitHubClientID: "id", GitHubClientSecret: "s3cret", OwnerLogin: "anand1296"}).ServeHTTP(rec, httptest.NewRequest("GET", "/api/bootstrap", nil))
+	body := rec.Body.String()
+	if !strings.Contains(body, `"setup":{"database":false,"github":true,"owner":true,"appUrl":false}`) || strings.Contains(body, "s3cret") || strings.Contains(body, "anand1296") {
+		t.Fatalf("setup report: %s", body)
+	}
 }
 
 func TestVercelRestoresOriginalPath(t *testing.T) {

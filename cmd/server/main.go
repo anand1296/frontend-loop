@@ -31,18 +31,21 @@ func main() {
 
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg := server.ConfigFromEnv()
-	if cfg.DatabaseURL == "" {
-		log.Error("DATABASE_URL is required (see .env.example)")
-		os.Exit(1)
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	api, err := server.Build(ctx, cfg, log)
-	if err != nil {
-		log.Error("startup failed", "err", err)
-		os.Exit(1)
+	var api http.Handler
+	if cfg.DatabaseURL == "" {
+		// Same behavior as an unconfigured Vercel deployment: the app shows its setup checklist.
+		log.Warn("DATABASE_URL is not set: serving the setup checklist only (see .env.example)")
+		api = server.NewLazy(cfg)
+	} else {
+		built, err := server.Build(ctx, cfg, log)
+		if err != nil {
+			log.Error("startup failed", "err", err)
+			os.Exit(1)
+		}
+		api = built
 	}
 
 	mux := http.NewServeMux()

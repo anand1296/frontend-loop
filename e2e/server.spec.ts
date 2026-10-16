@@ -27,11 +27,12 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
+/** A fresh deployment is members-only: visitors land on the full-page sign-in screen. */
 async function signIn(page: Page, login: string): Promise<void> {
-  await page.locator('aside.sidebar').getByRole('button', { name: 'Sign in' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Sign in' });
-  await dialog.getByLabel('Developer sign-in (local only)').fill(login);
-  await dialog.getByRole('button', { name: 'Sign in' }).click();
+  const screen = page.locator('.auth-screen');
+  await expect(screen.getByRole('heading', { name: 'Sign in to continue' })).toBeVisible();
+  await screen.getByLabel('Developer sign-in (local only)').fill(login);
+  await screen.getByRole('button', { name: 'Sign in' }).click();
 }
 
 async function newPage(browser: Browser): Promise<{ page: Page; errors: string[] }> {
@@ -46,7 +47,7 @@ test('owner signs in and manages content live', async ({ browser }) => {
   const { page, errors } = await newPage(browser);
   await page.goto('/');
   const side = page.locator('aside.sidebar');
-  await expect(side.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  await expect(side).toHaveCount(0); // no app before signing in
 
   await signIn(page, OWNER);
   await expect(side.getByRole('button', { name: /Admin/ })).toBeVisible();
@@ -102,7 +103,8 @@ test('owner signs in and manages content live', async ({ browser }) => {
 test('an invited learner joins, studies and syncs across devices', async ({ browser }) => {
   const laptop = await newPage(browser);
   await laptop.page.goto(new URL(inviteLink).pathname + new URL(inviteLink).search);
-  const invite = laptop.page.getByRole('dialog', { name: 'Invitation' });
+  const invite = laptop.page.locator('.auth-screen');
+  await expect(invite.getByRole('heading', { name: "You're invited" })).toBeVisible();
   await expect(invite).toContainText(`@${OWNER} invited you`);
   expect(laptop.page.url()).not.toContain('invite=');
   await invite.getByLabel('Developer sign-in (local only)').fill('priya');
@@ -144,9 +146,6 @@ test('the owner sees progress; strangers need an invite', async ({ browser }) =>
 
   const stranger = await newPage(browser);
   await stranger.page.goto('/');
-  await stranger.page.locator('aside.sidebar').getByRole('button', { name: 'Sign in' }).click();
-  const dialog = stranger.page.getByRole('dialog', { name: 'Sign in' });
-  await dialog.getByLabel('Developer sign-in (local only)').fill('stranger');
-  await dialog.getByRole('button', { name: 'Sign in' }).click();
-  await expect(dialog.getByRole('alert')).toContainText("isn't on the list");
+  await signIn(stranger.page, 'stranger');
+  await expect(stranger.page.locator('.auth-screen').getByRole('alert')).toContainText("isn't on the list");
 });

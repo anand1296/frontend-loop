@@ -20,7 +20,7 @@ The repository is already set up for Vercel: `vercel.json` builds the Vite front
 
 1. vercel.com → **Add New… → Project** → import `anand1296/frontend-loop`.
 2. Keep the detected settings (framework Vite; build and output come from `vercel.json`). **Deploy.**
-3. Note the production URL, e.g. `https://frontend-loop.vercel.app`. At this point the app works in local-only mode (the API answers `503 not_configured`).
+3. Note the production URL, e.g. `https://frontend-loop.vercel.app`. Opening it now shows **"Almost there: connect the backend"**: a checklist of which settings are present (the API answers `503 not_configured`). Anyone can still click *Study offline for now*, but nothing syncs and there's no sign-in until the steps below are done.
 
 ### 1.2 Add a free Postgres database (Neon)
 
@@ -28,6 +28,8 @@ The repository is already set up for Vercel: `vercel.json` builds the Vite front
 2. Connect it to the project for **Production** and **Preview**. Vercel adds `DATABASE_URL` (and `POSTGRES_URL` etc.) automatically.
 
 The first request after deploy creates the schema and seeds the 109 questions from `content/*.md`.
+
+What you'll see after each step: no database → setup checklist; database but no GitHub OAuth app → the sign-in screen says GitHub sign-in isn't switched on; everything set → the sign-in screen with **Continue with GitHub**. Sign in as `anand1296` and the sidebar shows **Admin · Super admin**; invite people from Admin → Invites.
 
 ### 1.3 Create a GitHub OAuth app
 

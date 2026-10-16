@@ -13,7 +13,7 @@ import { isLevel, type QuestionMeta, type SectionAnswers, type SectionMeta } fro
 import { createStore } from '../state/createStore.ts';
 import { useStore } from '../state/useStore.ts';
 import { announcementStore, type Announcement } from '../features/announcement/announcement.ts';
-import { api } from './api.ts';
+import { api, apiFetch } from './api.ts';
 
 export type Role = 'owner' | 'admin' | 'learner';
 
@@ -36,8 +36,22 @@ export const FEATURE_KEYS = ['review', 'search', 'notes', 'filters', 'progressTr
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 export type Features = Record<FeatureKey, boolean>;
 
+/** What a deployed but unfinished backend reports (booleans only, never values). */
+export interface SetupInfo {
+  reason: 'not_configured' | 'unavailable';
+  database: boolean;
+  github: boolean;
+  owner: boolean;
+  appUrl: boolean;
+}
+
 export interface ServerState {
-  mode: 'static' | 'server';
+  /**
+   * static: no backend (static host, Artifact, offline) or the visitor chose to study offline.
+   * server: backend connected. setup: a backend is deployed but not configured or not reachable.
+   */
+  mode: 'static' | 'server' | 'setup';
+  setup: SetupInfo | null;
   user: ServerUser | null;
   site: SiteSettings;
   features: Features;
@@ -52,6 +66,7 @@ export const DEFAULT_SITE: SiteSettings = { name: 'Frontend Loop', tagline: '', 
 
 export const serverStore = createStore<ServerState>({
   mode: 'static',
+  setup: null,
   user: null,
   site: DEFAULT_SITE,
   features: ALL_ON,
@@ -146,6 +161,7 @@ function apply(body: Record<string, unknown>): void {
   const auth = isRecord(body.auth) ? body.auth : {};
   serverStore.setState(() => ({
     mode: 'server',
+    setup: null,
     user: parseUser(body.user),
     site: parseSite(body.site),
     features: parseFeatures(body.features),
@@ -167,17 +183,67 @@ async function fetchBootstrap(timeoutMs: number): Promise<Record<string, unknown
   }
 }
 
-/** Probe for the backend once, before the first render. Resolves true in server mode. */
-export async function connectBackend(timeoutMs = 10_000): Promise<boolean> {
-  if (typeof __BACKEND__ === 'undefined' || !__BACKEND__) return false;
-  const body = await fetchBootstrap(timeoutMs);
-  if (!body) return false;
-  setServerAnswerLoader(async (sectionId) => {
-    const res = await api<{ answers?: SectionAnswers }>(`/content/sections/${encodeURIComponent(sectionId)}`);
-    return res.answers ?? {};
-  });
-  apply(body);
-  return true;
+const OFFLINE_KEY = 'frontend-loop:study-offline';
+
+function parseSetup(body: unknown): SetupInfo | null {
+  if (!isRecord(body) || !isRecord(body.setup) || !isRecord(body.error)) return null;
+  const code = body.error.code;
+  if (code !== 'not_configured' && code !== 'unavailable') return null;
+  const s = body.setup;
+  return { reason: code, database: s.database === true, github: s.github === true, owner: s.owner === true, appUrl: s.appUrl === true };
+}
+
+export type BackendMode = 'server' | 'setup' | 'none';
+
+/**
+ * Probe for the backend once, before the first render.
+ * - 'server': connected; content, settings and the user come from the API.
+ * - 'setup': an API is deployed here but not configured (or its database is
+ *   unreachable); the app shows a setup checklist instead of pretending to sync.
+ * - 'none': no API at all (static host, Artifact build); local-only mode.
+ */
+export async function connectBackend(timeoutMs = 10_000): Promise<BackendMode> {
+  if (typeof __BACKEND__ === 'undefined' || !__BACKEND__) return 'none';
+  let body: unknown = null;
+  let status = 0;
+  try {
+    const res = await apiFetch('/bootstrap', { timeoutMs });
+    status = res.status;
+    if ((res.headers.get('Content-Type') ?? '').includes('application/json')) body = await res.json();
+  } catch {
+    return 'none';
+  }
+  if (status === 200 && isRecord(body) && body.mode === 'server') {
+    setServerAnswerLoader(async (sectionId) => {
+      const res = await api<{ answers?: SectionAnswers }>(`/content/sections/${encodeURIComponent(sectionId)}`);
+      return res.answers ?? {};
+    });
+    apply(body);
+    return 'server';
+  }
+  const setup = status === 503 ? parseSetup(body) : null;
+  if (setup) {
+    let offline = false;
+    try {
+      offline = sessionStorage.getItem(OFFLINE_KEY) === '1';
+    } catch {
+      offline = false;
+    }
+    if (offline) return 'none';
+    serverStore.setState((s) => ({ ...s, mode: 'setup', setup }));
+    return 'setup';
+  }
+  return 'none';
+}
+
+/** From the setup screen: study with local-only progress for this browser session. */
+export function continueOffline(): void {
+  try {
+    sessionStorage.setItem(OFFLINE_KEY, '1');
+  } catch {
+    // Without sessionStorage the choice lasts until reload, which is fine.
+  }
+  serverStore.setState((s) => ({ ...s, mode: 'static' }));
 }
 
 /** Re-read content and settings, e.g. after an admin saves something. */

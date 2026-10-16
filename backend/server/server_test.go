@@ -52,7 +52,18 @@ type env struct {
 	now   time.Time
 }
 
+// newEnv starts a server whose content is public (most tests read as an
+// anonymous visitor). newPrivateEnv keeps the members-only default.
 func newEnv(t *testing.T, mutate ...func(*Config)) *env {
+	t.Helper()
+	e := newPrivateEnv(t, mutate...)
+	if err := e.store.PutSetting(context.Background(), 0, "site", Site{Name: "Frontend Loop", Registration: "invite", ContentAccess: "public"}); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+func newPrivateEnv(t *testing.T, mutate ...func(*Config)) *env {
 	t.Helper()
 	url := testDatabaseURL(t)
 	ctx := context.Background()
@@ -214,6 +225,22 @@ func (b bootstrapBody) questionIDs() []string {
 }
 
 /* ---------------------------------------------------------------- tests */
+
+// A fresh deployment is private: anonymous visitors get the sign-in screen
+// (locked, no content), the owner gets in, strangers need an invite.
+func TestPrivateByDefault(t *testing.T) {
+	e := newPrivateEnv(t)
+	anon := e.anon()
+	b := anon.bootstrap()
+	if !b.Locked || b.Content != nil || b.Site.ContentAccess != "members" || b.Site.Registration != "invite" {
+		t.Fatalf("fresh deployment should be members-only and invite-only: %+v", b)
+	}
+	expect(t, anon.do("GET", "/api/content/sections/basics", nil), 401)
+	owner := e.login("owner")
+	if b := owner.bootstrap(); b.Locked || b.Content == nil || b.User.Role != "owner" {
+		t.Fatalf("owner should read everything: %+v", b)
+	}
+}
 
 func TestBootstrapAndHealth(t *testing.T) {
 	e := newEnv(t)

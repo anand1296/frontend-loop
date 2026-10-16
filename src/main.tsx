@@ -18,8 +18,8 @@ async function boot(): Promise<void> {
   initPrefs();
   readLaunchParams(); // ?invite=… and ?auth_error=… from links and the OAuth redirect
   // One request decides the mode. No backend (static host, Artifact, offline) = local-only, exactly as before.
-  const serverMode = await connectBackend();
-  initProgress(serverMode ? { serverUserId: serverStore.getState().user?.id ?? null } : {});
+  const backend = await connectBackend();
+  initProgress(backend === 'server' ? { serverUserId: serverStore.getState().user?.id ?? null } : {});
   initRouter();
   void initAnnouncement(); // reads dismissals; subscribes to the Artifact store when hosted there
 
