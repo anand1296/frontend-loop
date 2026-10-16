@@ -113,6 +113,23 @@ describe('compileWalkthroughs', () => {
     assert.deepEqual(out.items[0]?.files, ['src/parse.ts']);
   });
 
+  it('does not check plain .github links on Vercel, whose checkout omits that folder', () => {
+    const root = repo();
+    const body = '[ci](repo:.github/workflows/ci.yml) and [forms](repo:.github/ISSUE_TEMPLATE/)';
+    assert.throws(() => compileWalkthroughs([doc(body)], ctx(root)), /does not exist/);
+    const before = process.env.VERCEL;
+    process.env.VERCEL = '1';
+    try {
+      const html = compileWalkthroughs([doc(body)], ctx(root)).html.demo ?? '';
+      assert.match(html, /blob\/abc123\/.github\/workflows\/ci.yml"/);
+      assert.match(html, /tree\/abc123\/.github\/ISSUE_TEMPLATE"/);
+      assert.throws(() => compileWalkthroughs([doc('[x](repo:.github/ci.yml#Gone)')], ctx(root)), /does not exist/);
+    } finally {
+      if (before === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = before;
+    }
+  });
+
   it('sorts by order and rejects duplicate ids', () => {
     const root = repo();
     const second = { ...doc('Two', 'two'), source: doc('Two', 'two').source.replace('order: 1', 'order: 0') };

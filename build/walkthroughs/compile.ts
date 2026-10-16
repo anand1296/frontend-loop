@@ -134,9 +134,21 @@ function readLines(ctx: RepoContext, path: string, where: string): string[] {
   return readFileSync(full, 'utf8').split('\n');
 }
 
+/**
+ * Plain links into `.github/` can't be checked on Vercel: its build checkout doesn't include that
+ * folder, so a link that is verified in CI would fail the deploy. CI (a full checkout, no `VERCEL`
+ * variable) still checks them; only links without a symbol or range qualify, since those need no content.
+ */
+function verifiedElsewhere(path: string, anchor: string | undefined): boolean {
+  return !anchor && !!process.env.VERCEL && path.startsWith('.github/') && !path.includes('..');
+}
+
 /** Resolve `repo:` references to GitHub URLs; returns the URL and the referenced file. */
 export function resolveRepoRef(ctx: RepoContext, ref: string, where: string): { url: string; file: string } {
   const [path = '', anchor] = ref.split('#', 2);
+  if (verifiedElsewhere(path, anchor)) {
+    return { url: path.endsWith('/') ? treeUrl(ctx, path) : blobUrl(ctx, path), file: path };
+  }
   if (path.endsWith('/')) {
     const full = join(ctx.root, path);
     if (path.includes('..') || !existsSync(full) || !statSync(full).isDirectory()) {
