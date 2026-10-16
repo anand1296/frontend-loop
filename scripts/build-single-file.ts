@@ -52,7 +52,7 @@ const result = await build({
   jsx: 'automatic',
   minify: true,
   legalComments: 'none',
-  define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'false' },
+  define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'false', 'import.meta.env': '{}' },
   plugins: [contentPlugin(content)],
   logLevel: 'warning',
 });
@@ -121,7 +121,7 @@ if (process.argv.includes('--web')) {
     jsx: 'automatic',
     minify: true,
     legalComments: 'none',
-    define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'true' },
+    define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'true', 'import.meta.env': '{}' },
     plugins: [contentPlugin(content)],
     logLevel: 'warning',
   });
