@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/anand1296/frontend-loop/backend/auth"
 	"github.com/anand1296/frontend-loop/backend/catalog"
+	"github.com/anand1296/frontend-loop/backend/mail"
 	"github.com/anand1296/frontend-loop/backend/store"
 )
 
@@ -86,7 +88,7 @@ func newPrivateEnv(t *testing.T, mutate ...func(*Config)) *env {
 	for _, m := range mutate {
 		m(&cfg)
 	}
-	app := New(cfg, st, repo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	app := New(cfg, st, repo, slog.New(slog.NewTextHandler(testLogOutput(), nil)))
 	e := &env{t: t, app: app, store: st, now: time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)}
 	app.SetClock(func() time.Time { return e.now })
 	e.srv = httptest.NewServer(app.Handler())
@@ -762,6 +764,11 @@ func TestGitHubOAuthFlow(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": 4242, "login": "Owner", "name": "The Owner", "avatar_url": "https://avatars.githubusercontent.com/u/4242"})
+		case "/user/emails":
+			_ = json.NewEncoder(w).Encode([]map[string]any{
+				{"email": "old@example.com", "primary": false, "verified": true},
+				{"email": "owner@example.com", "primary": true, "verified": true},
+			})
 		}
 	}))
 	defer fake.Close()
@@ -776,7 +783,7 @@ func TestGitHubOAuthFlow(t *testing.T) {
 	expect(t, r, 302)
 	loc, _ := url.Parse(r.header.Get("Location"))
 	state := loc.Query().Get("state")
-	if loc.Host != "github.com" || state == "" || loc.Query().Get("redirect_uri") != e.srv.URL+"/api/auth/github/callback" {
+	if loc.Host != "github.com" || state == "" || loc.Query().Get("redirect_uri") != e.srv.URL+"/api/auth/github/callback" || loc.Query().Get("scope") != "user:email" {
 		t.Fatalf("bad authorize redirect: %s", loc)
 	}
 
@@ -797,6 +804,13 @@ func TestGitHubOAuthFlow(t *testing.T) {
 	b := c.bootstrap()
 	if b.User == nil || b.User.Login != "owner" || b.User.Role != "owner" {
 		t.Fatalf("oauth sign-in failed: %+v", b.User)
+	}
+	var reminders struct {
+		Email string `json:"email"`
+	}
+	c.do("GET", "/api/me/reminders", nil).json(t, &reminders)
+	if reminders.Email != "owner@example.com" {
+		t.Fatalf("primary verified email not stored: %q", reminders.Email)
 	}
 	// Open redirects are not possible through next.
 	r = c.do("GET", "/api/auth/github/start?next=https://evil.example", nil)
@@ -861,4 +875,138 @@ func TestSingleUseInviteUnderConcurrency(t *testing.T) {
 	if ok != 1 {
 		t.Fatalf("expected exactly one successful sign-in, got %d", ok)
 	}
+}
+
+func TestEmailReminders(t *testing.T) {
+	e := newEnv(t, func(c *Config) { c.CronSecret = "cron-secret" })
+	outbox := &mail.Recorder{}
+	e.app.SetMailer(outbox)
+
+	owner := e.anon()
+	expect(t, owner.do("POST", "/api/auth/dev-login", map[string]string{"login": "owner", "email": "owner@example.com"}), 200)
+	var inv struct {
+		URL string `json:"url"`
+	}
+	ir := owner.do("POST", "/api/admin/invites", map[string]any{})
+	expect(t, ir, 201)
+	ir.json(t, &inv)
+	learner := e.login("noemail", inv.URL[strings.Index(inv.URL, "=")+1:])
+
+	type prefs struct {
+		Enabled         bool   `json:"enabled"`
+		Frequency       string `json:"frequency"`
+		Email           string `json:"email"`
+		EmailConfigured bool   `json:"emailConfigured"`
+		Available       bool   `json:"available"`
+	}
+	var p prefs
+	owner.do("GET", "/api/me/reminders", nil).json(t, &p)
+	if p.Enabled || p.Frequency != "weekly" || p.Email != "owner@example.com" || !p.EmailConfigured || !p.Available {
+		t.Fatalf("defaults: %+v", p)
+	}
+	// Off by default; can't switch on without a verified address.
+	if r := learner.do("PUT", "/api/me/reminders", map[string]any{"enabled": true, "frequency": "daily"}); r.code() != "no_email" {
+		t.Fatalf("expected no_email, got %s", r.body)
+	}
+	expect(t, owner.do("PUT", "/api/me/reminders", map[string]any{"enabled": true, "frequency": "hourly"}), 422)
+	expect(t, owner.do("PUT", "/api/me/reminders", map[string]any{"enabled": true, "frequency": "daily"}), 200)
+	expect(t, owner.do("PUT", "/api/me/progress", map[string]any{"version": 1, "lastVisit": nil, "questions": map[string]any{
+		"first-question": map[string]any{"done": true, "doneAt": 1, "stage": 0, "dueAt": 1, "notes": "", "updatedAt": float64(e.now.UnixMilli())},
+	}}), 200)
+
+	cron := func() (status int, body map[string]any) {
+		r := e.anon().request("GET", "/api/cron/reminders", nil, map[string]string{"Authorization": "Bearer cron-secret"})
+		_ = json.Unmarshal(r.body, &body)
+		return r.status, body
+	}
+	expect(t, e.anon().request("GET", "/api/cron/reminders", nil, map[string]string{"Authorization": "Bearer wrong"}), 401)
+	if status, body := cron(); status != 200 || body["sent"] != float64(1) {
+		t.Fatalf("first run: %d %v", status, body)
+	}
+	msgs := outbox.Messages()
+	if len(msgs) != 1 || msgs[0].To != "owner@example.com" || !strings.Contains(msgs[0].Subject, "1/3 done · 1 due for review") ||
+		!strings.Contains(msgs[0].HTML, e.srv.URL+"/#second-question") {
+		t.Fatalf("unexpected email: %+v", msgs)
+	}
+
+	// Frequency is respected: nothing more today, one more tomorrow.
+	if _, body := cron(); body["claimed"] != float64(0) {
+		t.Fatalf("second run the same day must send nothing: %v", body)
+	}
+	e.now = e.now.Add(21 * time.Hour)
+	if _, body := cron(); body["sent"] != float64(1) {
+		t.Fatalf("next day: %v", body)
+	}
+
+	// A failed send is released and retried on the next run.
+	e.now = e.now.Add(21 * time.Hour)
+	outbox.Fail = errors.New("smtp down")
+	if _, body := cron(); body["failed"] != float64(1) {
+		t.Fatalf("failure not reported: %v", body)
+	}
+	outbox.Fail = nil
+	if _, body := cron(); body["sent"] != float64(1) {
+		t.Fatalf("retry after failure: %v", body)
+	}
+
+	// Test email: available on demand, rate limited.
+	expect(t, owner.do("POST", "/api/me/reminders/test", nil), 200)
+	expect(t, owner.do("POST", "/api/me/reminders/test", nil), 200)
+	expect(t, owner.do("POST", "/api/me/reminders/test", nil), 200)
+	expect(t, owner.do("POST", "/api/me/reminders/test", nil), 429)
+	if r := learner.do("POST", "/api/me/reminders/test", nil); r.code() != "no_email" {
+		t.Fatalf("expected no_email, got %s", r.body)
+	}
+
+	// Unsubscribe: GET only asks; POST (no session, no CSRF header) switches off.
+	link := outbox.Messages()[0].Headers["List-Unsubscribe"]
+	unsub, _ := url.Parse(strings.Trim(link, "<>"))
+	path := unsub.Path + "?" + unsub.RawQuery
+	r := e.anon().do("GET", path, nil)
+	if r.status != 200 || !strings.Contains(string(r.body), "Stop reminder emails?") {
+		t.Fatalf("confirm page: %d %s", r.status, r.body)
+	}
+	owner.do("GET", "/api/me/reminders", nil).json(t, &p)
+	if !p.Enabled {
+		t.Fatal("GET must not unsubscribe (link scanners)")
+	}
+	r = e.anon().request("POST", path, nil, map[string]string{CSRFHeader: ""})
+	if r.status != 200 || !strings.Contains(string(r.body), "unsubscribed") {
+		t.Fatalf("one-click unsubscribe: %d %s", r.status, r.body)
+	}
+	owner.do("GET", "/api/me/reminders", nil).json(t, &p)
+	if p.Enabled {
+		t.Fatal("still subscribed")
+	}
+	expect(t, e.anon().do("GET", "/api/reminders/unsubscribe?token=nope", nil), 404)
+
+	// Emails are private: admins never see them.
+	if r := owner.do("GET", "/api/admin/users", nil); strings.Contains(string(r.body), "owner@example.com") {
+		t.Fatal("email leaked into the admin people list")
+	}
+
+	// The admin switch turns the whole feature off.
+	expect(t, owner.do("PUT", "/api/admin/settings/features", map[string]bool{"emailReminders": false}), 200)
+	e.now = e.now.Add(time.Minute)
+	if r := owner.do("PUT", "/api/me/reminders", map[string]any{"enabled": true, "frequency": "weekly"}); r.code() != "disabled" {
+		t.Fatalf("expected disabled, got %s", r.body)
+	}
+	if _, body := cron(); body["skipped"] == nil {
+		t.Fatalf("cron should skip when the feature is off: %v", body)
+	}
+}
+
+func TestCronNeedsASecret(t *testing.T) {
+	e := newEnv(t)
+	if r := e.anon().do("GET", "/api/cron/reminders", nil); r.code() != "cron_unconfigured" {
+		t.Fatalf("expected cron_unconfigured, got %s", r.body)
+	}
+}
+
+// testLogOutput shows server logs with TEST_VERBOSE=1 (useful when a 500 needs explaining).
+func testLogOutput() io.Writer {
+	if os.Getenv("TEST_VERBOSE") != "" {
+		return os.Stderr
+	}
+	return io.Discard
 }

@@ -32,7 +32,7 @@ export interface SiteSettings {
   contentAccess: 'public' | 'members';
 }
 
-export const FEATURE_KEYS = ['review', 'search', 'notes', 'filters', 'progressTransfer', 'levelOverview'] as const;
+export const FEATURE_KEYS = ['review', 'search', 'notes', 'filters', 'progressTransfer', 'levelOverview', 'emailReminders'] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 export type Features = Record<FeatureKey, boolean>;
 
@@ -56,6 +56,8 @@ export interface ServerState {
   site: SiteSettings;
   features: Features;
   auth: { github: boolean; dev: boolean };
+  /** The server can send email (SMTP configured). */
+  email: boolean;
   /** Members-only site and nobody signed in: content is withheld. */
   locked: boolean;
 }
@@ -71,6 +73,7 @@ export const serverStore = createStore<ServerState>({
   site: DEFAULT_SITE,
   features: ALL_ON,
   auth: { github: false, dev: false },
+  email: false,
   locked: false,
 });
 
@@ -166,6 +169,7 @@ function apply(body: Record<string, unknown>): void {
     site: parseSite(body.site),
     features: parseFeatures(body.features),
     auth: { github: auth.github === true, dev: auth.dev === true },
+    email: body.email === true,
     locked: body.locked === true,
   }));
   const content = isRecord(body.content) ? body.content : null;

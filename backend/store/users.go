@@ -18,14 +18,16 @@ const (
 
 // User is a person who has signed in at least once.
 type User struct {
-	ID         int64     `json:"id"`
-	GitHubID   *int64    `json:"-"`
-	Login      string    `json:"login"`
-	Name       string    `json:"name"`
-	AvatarURL  string    `json:"avatarUrl"`
-	Role       string    `json:"role"`
-	Disabled   bool      `json:"disabled"`
-	InvitedBy  *int64    `json:"invitedBy"`
+	ID        int64  `json:"id"`
+	GitHubID  *int64 `json:"-"`
+	Login     string `json:"login"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatarUrl"`
+	Role      string `json:"role"`
+	Disabled  bool   `json:"disabled"`
+	InvitedBy *int64 `json:"invitedBy"`
+	// Email is private to its owner: never serialized into admin views.
+	Email      string    `json:"-"`
 	CreatedAt  time.Time `json:"createdAt"`
 	LastSeenAt time.Time `json:"lastSeenAt"`
 }
@@ -33,14 +35,14 @@ type User struct {
 // IsAdmin reports whether the user may use the admin console.
 func (u User) IsAdmin() bool { return u.Role == RoleOwner || u.Role == RoleAdmin }
 
-const userColumns = `id, github_id, login, name, avatar_url, role, disabled, invited_by, created_at, last_seen_at`
+const userColumns = `id, github_id, login, name, avatar_url, role, disabled, invited_by, created_at, last_seen_at, email`
 
 type scanner interface{ Scan(dest ...any) error }
 
 func scanUser(row scanner) (User, error) {
 	var u User
 	var githubID, invitedBy sql.NullInt64
-	err := row.Scan(&u.ID, &githubID, &u.Login, &u.Name, &u.AvatarURL, &u.Role, &u.Disabled, &invitedBy, &u.CreatedAt, &u.LastSeenAt)
+	err := row.Scan(&u.ID, &githubID, &u.Login, &u.Name, &u.AvatarURL, &u.Role, &u.Disabled, &invitedBy, &u.CreatedAt, &u.LastSeenAt, &u.Email)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -59,6 +61,8 @@ type Identity struct {
 	Login     string
 	Name      string
 	AvatarURL string
+	// Email is a verified address from the provider; "" keeps whatever is stored.
+	Email string
 }
 
 // SignInOptions carry the policy for a sign-in attempt.
@@ -100,8 +104,8 @@ func (s *Store) SignIn(ctx context.Context, id Identity, opts SignInOptions) (Us
 				return err
 			}
 			user, err = scanUser(tx.QueryRowContext(ctx, `UPDATE users SET login = $2, name = $3, avatar_url = $4, role = $5,
-				disabled = false, last_seen_at = $6 WHERE id = $1 RETURNING `+userColumns,
-				user.ID, login, id.Name, id.AvatarURL, role, opts.Now))
+				disabled = false, last_seen_at = $6, email = COALESCE(NULLIF($7, ''), email) WHERE id = $1 RETURNING `+userColumns,
+				user.ID, login, id.Name, id.AvatarURL, role, opts.Now, strings.TrimSpace(id.Email)))
 			return err
 		}
 		if !errors.Is(err, ErrNotFound) {
@@ -139,9 +143,9 @@ func (s *Store) SignIn(ctx context.Context, id Identity, opts SignInOptions) (Us
 		if _, err := tx.ExecContext(ctx, `UPDATE users SET login = login || '~' || id WHERE login = $1`, login); err != nil {
 			return err
 		}
-		user, err = scanUser(tx.QueryRowContext(ctx, `INSERT INTO users (github_id, login, name, avatar_url, role, invited_by, created_at, last_seen_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $7) RETURNING `+userColumns,
-			githubID, login, id.Name, id.AvatarURL, role, invitedBy, opts.Now))
+		user, err = scanUser(tx.QueryRowContext(ctx, `INSERT INTO users (github_id, login, name, avatar_url, role, invited_by, created_at, last_seen_at, email)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8) RETURNING `+userColumns,
+			githubID, login, id.Name, id.AvatarURL, role, invitedBy, opts.Now, strings.TrimSpace(id.Email)))
 		if err != nil {
 			return err
 		}
@@ -241,7 +245,7 @@ func (s *Store) SessionUser(ctx context.Context, tokenHash []byte, now time.Time
 		WHERE s.token_hash = $1 AND s.expires_at > $2 AND NOT u.disabled`, tokenHash, now)
 	var u User
 	var githubID, invitedBy sql.NullInt64
-	err := row.Scan(&lastUsed, &u.ID, &githubID, &u.Login, &u.Name, &u.AvatarURL, &u.Role, &u.Disabled, &invitedBy, &u.CreatedAt, &u.LastSeenAt)
+	err := row.Scan(&lastUsed, &u.ID, &githubID, &u.Login, &u.Name, &u.AvatarURL, &u.Role, &u.Disabled, &invitedBy, &u.CreatedAt, &u.LastSeenAt, &u.Email)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}

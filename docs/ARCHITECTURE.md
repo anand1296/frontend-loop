@@ -58,6 +58,7 @@ src/
   platform/                   api.ts (fetch client, CSRF header, ApiError) · backend.ts (server mode: bootstrap, user,
                               flags, sign-in) · launch.ts (?invite / ?auth_error) · runtime.ts (claude.ai Artifact)
   features/account/           sign-in and setup screens (Gate.tsx), sign-in dialog, invite dialog, sign-in errors, account settings
+  features/reminders/         Settings → Email reminders (opt-in, frequency, test email)
   features/console/           admin console (server mode): content manager + question editor, learners, invites,
                               features & settings, activity
   features/admin/             owner dashboard for the claude.ai Artifact build

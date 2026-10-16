@@ -68,6 +68,35 @@ Then **Deployments → ⋯ → Redeploy** so the function picks them up.
 - **Cold starts:** Neon's free tier sleeps after inactivity; the first request may take a second or two. The function retries its startup if the database is still waking up.
 - **Migrations** run automatically on the first request after a deploy. They are additive; there's nothing to run by hand.
 
+### 1.7 Email reminders (optional)
+
+![A reminder email](screenshots/reminder-email.png)
+
+People can opt in (Settings → Email reminders, off by default) to a daily, every-3-days or weekly email with their progress, what's due, the next question and a link back. The daily job is already scheduled in `vercel.json` (`/api/cron/reminders`, 03:30 UTC ≈ 09:00 IST). It needs an SMTP account and a cron secret.
+
+**Easiest: your Gmail account (no domain needed, ~500 emails/day)**
+
+1. Turn on **2-Step Verification** for the Google account (myaccount.google.com → Security). App passwords require it.
+2. Open https://myaccount.google.com/apppasswords, name it `Frontend Loop`, click **Create** and copy the 16-character password (spaces don't matter).
+3. In Vercel → Settings → Environment Variables (Production), add:
+
+   | Key | Value |
+   | --- | --- |
+   | `SMTP_HOST` | `smtp.gmail.com` |
+   | `SMTP_PORT` | `587` |
+   | `SMTP_USERNAME` | your Gmail address |
+   | `SMTP_PASSWORD` | the app password (mark it Sensitive) |
+   | `EMAIL_FROM` | `Frontend Loop <your Gmail address>` (must be the same address) |
+   | `CRON_SECRET` | a long random string, e.g. from `openssl rand -hex 32` or a password manager (Sensitive) |
+
+4. **Redeploy.** Vercel → Settings → **Cron Jobs** now lists `/api/cron/reminders`.
+5. **Sign out and sign in again** once: GitHub asks you to share your email address (the app now requests the read-only `user:email` permission). Every user does this once.
+6. Settings → **Email reminders** → switch on → **Send me a test email**. Check spam the first time and mark it "Not spam".
+
+**With your own domain (better deliverability):** use Resend (`smtp.resend.com`, port 587, username `resend`, password = API key) or Brevo after verifying the domain there; `EMAIL_FROM` must use that domain.
+
+To check the job by hand: `curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-app>/api/cron/reminders` → `{"claimed":…,"sent":…,"failed":…}` (it only sends what is due). Admins can switch the feature off for everyone in Features & settings.
+
 ---
 
 ## 2. Local development

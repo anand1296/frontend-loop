@@ -10,6 +10,7 @@ import { useStore } from '../../state/useStore.ts';
 import { platformStore } from '../../platform/runtime.ts';
 import { useServer } from '../../platform/backend.ts';
 import { AccountSection } from '../account/Account.tsx';
+import { ReminderSettings } from '../reminders/ReminderSettings.tsx';
 
 export const SYNC_COPY: Record<SyncStatus, string> = {
   local: 'Saved in this browser',
@@ -200,6 +201,8 @@ export function SettingsDialog({ open, onClose, onSignIn }: { open: boolean; onC
         </section>
 
         <AccountSection onSignIn={onSignIn} />
+
+        <ReminderSettings />
 
         <section className="settings-section">
           <h3>Your progress</h3>

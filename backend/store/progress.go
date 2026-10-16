@@ -77,7 +77,7 @@ func (s *Store) AllProgress(ctx context.Context) ([]LearnerProgress, error) {
 		var raw []byte
 		var updated sql.NullTime
 		u := &lp.User
-		if err := rows.Scan(&u.ID, &githubID, &u.Login, &u.Name, &u.AvatarURL, &u.Role, &u.Disabled, &invitedBy, &u.CreatedAt, &u.LastSeenAt, &raw, &updated); err != nil {
+		if err := rows.Scan(&u.ID, &githubID, &u.Login, &u.Name, &u.AvatarURL, &u.Role, &u.Disabled, &invitedBy, &u.CreatedAt, &u.LastSeenAt, &u.Email, &raw, &updated); err != nil {
 			return nil, err
 		}
 		if invitedBy.Valid {

@@ -29,6 +29,14 @@ type Config struct {
 	Production bool
 	// TrustProxy means X-Forwarded-For/-Proto/-Host come from a proxy we control (Vercel, a load balancer).
 	TrustProxy bool
+	// SMTP settings for email reminders (any provider: Gmail app password, Resend, Brevo…).
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	EmailFrom    string // e.g. "Frontend Loop <you@gmail.com>"
+	// CronSecret authenticates the scheduler (Vercel Cron sends "Authorization: Bearer <CRON_SECRET>").
+	CronSecret string
 }
 
 // ConfigFromEnv reads Config from environment variables.
@@ -41,6 +49,7 @@ func ConfigFromEnv() Config {
 			maxConns = 3
 		}
 	}
+	smtpPort, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
 	return Config{
 		DatabaseURL:        firstEnv("DATABASE_URL", "POSTGRES_URL"),
 		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
@@ -51,6 +60,12 @@ func ConfigFromEnv() Config {
 		MaxDBConns:         maxConns,
 		Production:         production,
 		TrustProxy:         os.Getenv("VERCEL") != "" || os.Getenv("TRUST_PROXY") == "1",
+		SMTPHost:           os.Getenv("SMTP_HOST"),
+		SMTPPort:           smtpPort,
+		SMTPUsername:       os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:       os.Getenv("SMTP_PASSWORD"),
+		EmailFrom:          os.Getenv("EMAIL_FROM"),
+		CronSecret:         os.Getenv("CRON_SECRET"),
 	}
 }
 

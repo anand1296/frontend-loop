@@ -96,7 +96,7 @@ export function SignInScreen() {
           {site.registration === 'invite'
             ? 'Access is by invitation. New here? Open the invite link the admin sent you.'
             : 'Anyone with a GitHub account can join.'}{' '}
-          We only read your public GitHub profile (name and avatar).
+          We read only your GitHub name, avatar and verified email (used for optional reminders).
         </p>
       </div>
     </main>

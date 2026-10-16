@@ -161,6 +161,19 @@ IDs are stable; tests and ADRs refer to them.
 | FR-43 | Activity log of every administrative action and sign-up, newest first, paginated. |
 | FR-44 | Changes are visible to everyone without a deploy; the editor's own app view refreshes immediately. |
 
+### Email reminders (server mode, v2.2)
+
+| ID | Requirement |
+| --- | --- |
+| FR-50 | Settings has an **Email reminders** switch, **off by default**, per user. |
+| FR-51 | Frequency: daily, every 3 days or weekly. Changes save immediately. |
+| FR-52 | Reminders go to the user's **primary verified GitHub email** (read with the `user:email` scope at sign-in). Users without one are told to sign in again; the switch can't be turned on without an address. Email addresses are never shown to admins. |
+| FR-53 | Each email contains: overall progress (done/total, %), rounds finished, reviews due (linked to `#review`), up to three rounds in progress, the **next question** (same rule as "Continue") with a deep link, a **motivational line** chosen for the learner's situation (not started, all done, away 7+ days, reviews due, nearly done, otherwise a rotating line), and a link to the app. Plain-text and HTML parts. |
+| FR-54 | Every email has an unsubscribe link (confirmation page; GET never changes anything) and RFC 8058 one-click headers (`List-Unsubscribe`, `List-Unsubscribe-Post`). |
+| FR-55 | "Send me a test email" sends one immediately (max 3 per hour). |
+| FR-56 | A scheduler sends due reminders once a day (Vercel Cron, ~09:00 IST). Nobody gets two emails in one period, even if runs overlap; a failed send is retried on the next run. |
+| FR-57 | Admins can switch the whole feature off (feature flag `emailReminders`); the job then sends nothing and the setting is hidden. |
+
 ---
 
 ## 4. Non-functional requirements
@@ -330,6 +343,8 @@ recover → security headers → access log → CSRF guard → session → Serve
 | `auth` | Random tokens (256-bit), SHA-256 hashing, constant-time compare, GitHub OAuth client | Endpoints injectable for tests |
 | `store` | All SQL, transactions, migrations | `database/sql` + `lib/pq`; each method is one transaction with a stated invariant |
 | `server` | Config, routes, middleware, handlers, settings, rate limiter, serverless wrapper | `New(cfg, store, repo, log).Handler()` |
+| `mail` | SMTP sender (implicit TLS on 465, STARTTLS otherwise, mandatory when authenticating), MIME multipart builder, in-memory `Recorder` for tests | Standard library only; any SMTP provider |
+| `reminders` | Pure email composer: progress snapshot, next question, motivational line, HTML + text templates | No I/O; every branch unit-tested |
 
 ### 7.3 Configuration (12-factor)
 
@@ -343,6 +358,8 @@ recover → security headers → access log → CSRF guard → session → Serve
 | `DB_MAX_CONNS` | no | Pool size (default 10; 3 on Vercel) |
 | `TRUST_PROXY=1` | behind a proxy | Trust `X-Forwarded-*` (automatic on Vercel) |
 | `PORT`, `STATIC_DIR` | binary only | Listen port; directory of the built frontend |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM` | for reminders | Any SMTP provider (Gmail app password, Resend, Brevo…); port 587 STARTTLS or 465 TLS |
+| `CRON_SECRET` | for reminders | Bearer secret the scheduler must present to `GET /cron/reminders` |
 
 ### 7.4 Startup and serverless behavior
 
@@ -366,6 +383,7 @@ erDiagram
   users ||--o| progress : owns
   users ||--o{ invites : creates
   users ||--o{ audit_log : performs
+  users ||--o| reminder_prefs : sets
   sections ||--o{ questions : contains
   questions ||--o{ question_revisions : "history (no FK)"
 ```
@@ -374,7 +392,7 @@ erDiagram
 
 | Table | Key columns | Invariants |
 | --- | --- | --- |
-| `users` | `id`, `github_id` (unique, null for dev users), `login` (unique, lower-case), `role` (`owner`/`admin`/`learner`), `disabled`, `invited_by`, timestamps | Owner determined by config at each sign-in; a renamed GitHub login frees the old name |
+| `users` | `id`, `github_id` (unique, null for dev users), `login` (unique, lower-case), `role` (`owner`/`admin`/`learner`), `disabled`, `invited_by`, `email` (primary verified, private), timestamps | Owner determined by config at each sign-in; a renamed GitHub login frees the old name |
 | `sessions` | `token_hash` (SHA-256, PK), `user_id`, `expires_at`, `last_used_at` | Raw tokens never stored; disabling a user deletes their sessions |
 | `invites` | `token_hash` (unique), `role`, `note`, `max_uses`, `uses`, `expires_at`, `revoked_at`, `created_by` | `uses ≤ max_uses`; consumed inside the sign-in transaction with `SELECT … FOR UPDATE` |
 | `sections` | `id` (slug, PK), `title`, `description`, `position`, `published`, `updated_by` | Ids share one namespace with questions (they are URL tokens) |
@@ -383,6 +401,7 @@ erDiagram
 | `progress` | `user_id` (PK), `doc` (JSONB), `updated_at` | Only ever changed by a merge under a row lock |
 | `settings` | `key` (PK), `value` (JSONB) | Keys: `site`, `features`, `announcement`, `content_version` (counter), `seeded` |
 | `audit_log` | `actor_id`, `action`, `target`, `detail` (JSONB), `at` | Append-only |
+| `reminder_prefs` | `user_id` (PK), `enabled` (default false), `frequency` (`daily`/`every3days`/`weekly`), `unsubscribe_token` (unique), `last_sent_at`, `last_error` | Claimed with `FOR UPDATE SKIP LOCKED` before sending; minimum gaps 20 h / 68 h / 164 h absorb the cron's within-the-hour jitter |
 | `schema_migrations` | `version` | Migrations in `backend/store/migrations/NNN_name.sql`, applied once, in order, in one transaction |
 
 ### 8.3 Progress document (JSON, shared by browser and server)
@@ -424,6 +443,12 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `GET /me/progress` | learner+ | The stored progress document |
 | `PUT /me/progress` | learner+ (rate-limited) | Body: progress document. Merges and returns the merged document |
 | `DELETE /me` | learner/admin | Deletes the account, sessions and progress (owner refused) |
+| `GET /me/reminders` | learner+ | `{enabled, frequency, email, emailConfigured, available, lastSentAt, lastError, frequencies}` |
+| `PUT /me/reminders {enabled, frequency}` | learner+ | 422 `no_email` without a verified address; 403 `disabled` when the admin switched the feature off |
+| `POST /me/reminders/test` | learner+ (3/hour) | Sends one reminder now; 503 `email_unconfigured`, 502 `send_failed` |
+| `GET /cron/reminders` | `Authorization: Bearer $CRON_SECRET` | Claims up to 50 due reminders, sends, releases failures; `{claimed, sent, failed}` or `{skipped}` |
+| `GET /reminders/unsubscribe?token=` | token | HTML confirmation page (never changes state) |
+| `POST /reminders/unsubscribe?token=` | token (exempt from the CSRF header rule: no cookies involved) | Turns reminders off; also the RFC 8058 one-click target |
 
 ### 9.2 Admin (admin or owner)
 
@@ -509,6 +534,22 @@ sequenceDiagram
 
 Laptop ticks Q (updatedAt t2) → debounced `PUT` → server locks the row, merges, stores, returns the merged doc. Phone, on focus, `GET`s the doc → merges locally (LWW) → its own pending changes go up with the next `PUT`. Both converge regardless of order (merge is commutative and idempotent).
 
+### 11.4 Daily email reminders
+
+```text
+Vercel Cron (daily, 03:30 UTC ≈ 09:00 IST, fires within the hour)
+  └─ GET /api/cron/reminders   Authorization: Bearer $CRON_SECRET
+       ├─ feature off or SMTP missing → {skipped}
+       ├─ ClaimDueReminders(now, 50):  one UPDATE … FROM (SELECT … FOR UPDATE SKIP LOCKED)
+       │     sets last_sent_at = now for due, enabled, emailable users; returns the previous value
+       └─ for each claimed user:
+             load progress + published outline → reminders.Compose → SMTP send (10 s timeout)
+             ok   → ReminderSent (clear last_error)
+             fail → ReminderFailed (restore previous last_sent_at, store the reason) → retried next run
+```
+
+Claim-then-send gives at-most-once per period even when two runs overlap; restoring on failure turns it into at-least-once eventually. The email is pure data → template (`backend/reminders`), so its content is unit-tested without SMTP.
+
 ---
 
 ## 12. Security and privacy
@@ -528,11 +569,15 @@ Laptop ticks Q (updatedAt t2) → debounced `PUT` → server locks the row, merg
 | Injection | Parameterized SQL only; `unnest($1::text[])` for lists. |
 | Oversized input | 1 MiB body limit; field length limits; progress document caps. |
 | Clickjacking, sniffing | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, HSTS. |
-| Secrets | Only in environment variables; `.env` git-ignored; nothing secret reaches the browser. The GitHub access token is used once and discarded (no scopes requested). |
+| Secrets | Only in environment variables; `.env` git-ignored; nothing secret reaches the browser. The GitHub access token is used once and discarded (scope `user:email` only, read-only). |
+| Email abuse (sending to someone else's address) | Only the primary **verified** GitHub address is used; users can't type an address. Test sends are rate-limited; scheduled sends respect the frequency. |
+| Email header injection | CR/LF stripped from every header value; addresses parsed with `net/mail`; covered by tests. |
+| Unsubscribe link prefetching | GET shows a confirmation page; only POST (form or RFC 8058 one-click) changes state. The token can only turn reminders off. |
+| SMTP credentials | Sent only over TLS (465) or after STARTTLS; the client refuses to authenticate in clear text. |
 
 ### 12.2 Privacy
 
-Admins see per-learner summaries computed on the server (done counts per round, due count, last activity, current round). Notes and per-question timestamps never leave the learner's document. No analytics, no third-party scripts except Google Fonts CSS. Users can delete their account. Sign-out clears the device's local copy.
+Admins see per-learner summaries computed on the server (done counts per round, due count, last activity, current round). Notes and per-question timestamps never leave the learner's document. Email addresses are stored only to send reminders the user opted into and are never shown to admins. No analytics, no third-party scripts except Google Fonts CSS. Users can delete their account. Sign-out clears the device's local copy.
 
 ---
 
@@ -608,6 +653,7 @@ Full records with context and consequences: [DECISIONS.md](DECISIONS.md).
 | 019 | Feature flags are a fixed list in code; new features ship as code |
 | 020 | Graceful degradation: a boot probe chooses server, setup or local-only mode |
 | 022 | Private by default: members-only and invite-only, with a full-page sign-in screen |
+| 023 | Email reminders: opt-in, verified GitHub email, SMTP (any provider), daily cron with claim-then-send |
 | 021 | CMS safety: optimistic concurrency, revisions, trash, audit log |
 
 ---

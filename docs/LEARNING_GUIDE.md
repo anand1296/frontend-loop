@@ -45,6 +45,8 @@ Read in this order; each file is small and does one thing.
 | `backend/store/progress.go` + `backend/progress/` | Server-side CRDT-style merge under a row lock; property tests (commutative, idempotent) | Offline-first sync, conflict resolution |
 | `backend/markdown/` | goldmark AST transformer (callouts), custom node renderers, sanitizing by construction, mapping chroma tokens to another highlighter's classes | Parsing, XSS prevention |
 | `backend/catalog/` | Domain model and validation shared by import, editor and export; round-trip testing | Domain modeling |
+| `backend/mail/` | SMTP from the standard library: implicit TLS vs STARTTLS, MIME multipart, header-injection defense, a fake SMTP server in tests | Email delivery, protocols |
+| `backend/reminders/` + `store/reminders.go` + `server/reminders.go` | Pure composer vs I/O shell; scheduled job with claim-then-send (`FOR UPDATE SKIP LOCKED`), retry on failure, cron authentication, RFC 8058 one-click unsubscribe | Background jobs, idempotency |
 | `backend/server/server_test.go` | Integration tests with `httptest` and a real Postgres, cookie jars per user, a fake OAuth provider, a concurrency race test | Testing strategy for services |
 | `api/index.go`, `vercel.json`, `Dockerfile` | Same handler on Vercel and in a distroless container | Deployment, containers |
 
@@ -86,13 +88,14 @@ These follow the roadmap in docs/SPEC.md §18; each one is also a set of intervi
 21. **Terraform on AWS.** `infra/` modules for VPC, ECS Fargate (the existing Docker image) behind an ALB, RDS Postgres, ElastiCache Redis, S3 + CloudFront for the frontend, Secrets Manager, ACM; GitHub Actions with OIDC running plan on PRs and apply on main. *Practices: IaC, least-privilege IAM, CI/CD.*
 22. **AI follow-ups.** After a learner reveals an answer, stream a tough follow-up question from an LLM through the Go API (keys server-side, per-user quota in Redis, prompt and response logged for evals). *Practices: streaming, cost control, safety.*
 23. **Semantic search.** Embed every answer (pgvector), hybrid ranking with the existing keyword search, an eval set of 30 queries. *Practices: RAG, evaluation.*
+24. **Per-user send times.** Replace the daily cron with an hourly one (or a queue) and send each reminder at the learner's chosen local time; store an IANA time zone per user. *Practices: scheduling, time zones, queues.*
 
 ### Principal-level reflection
 
 13. Write an ADR proposing a migration of this app to Next.js with RSC. Argue honestly whether it's worth it (see ADR-001), with metrics you'd use to decide.
 14. Write the RFC for turning the content compiler into a shared internal package used by three other teams' docs sites.
-24. Write the ADR for moving from Vercel + Neon to AWS: cost at 100, 10k and 1M monthly users, operational load, lock-in, and what you'd measure before deciding.
-25. Design multi-tenancy (many organizations, each with its own content and admins) and write the migration plan from today's single-tenant schema.
+25. Write the ADR for moving from Vercel + Neon to AWS: cost at 100, 10k and 1M monthly users, operational load, lock-in, and what you'd measure before deciding.
+26. Design multi-tenancy (many organizations, each with its own content and admins) and write the migration plan from today's single-tenant schema.
 
 ## Part 3: How to study with the app
 

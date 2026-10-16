@@ -337,3 +337,28 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 - (+) One clear entry point; the invite flow and the owner flow are the same screen.
 - (−) Trying the app requires an invite; the owner can switch content access to public for an open demo.
 - (−) Existing deployments that saved explicit settings keep them (only the default changed).
+
+---
+
+## ADR-023: Email reminders: opt-in, verified GitHub email, plain SMTP, daily cron with claim-then-send
+
+**Status:** Accepted (v2.2)
+
+**Context.** Learners asked for nudges: a periodic email with their progress, what's due, the next question and some motivation. It must be off by default, cost nothing on free tiers, never email someone who didn't ask, and never double-send.
+
+**Decision.**
+- **Opt-in per user** (`reminder_prefs.enabled` defaults to false), frequency daily / every 3 days / weekly; an admin feature flag can switch the whole feature off.
+- **Address:** the primary *verified* GitHub email, fetched at sign-in with the read-only `user:email` scope. Users can't type an address, so the app can't be used to send mail to strangers, and there is no verification flow to build.
+- **Transport: SMTP** via the standard library (`backend/mail`). One implementation works with Gmail (app password, no domain needed), Resend, Brevo, SES or a local Mailpit. Credentials only over TLS.
+- **Scheduling: Vercel Cron** once a day (the Hobby plan allows daily jobs that fire within the hour), authenticated with `CRON_SECRET`. Minimum gaps (20 h / 68 h / 164 h) absorb the jitter.
+- **Exactly-once-ish delivery:** claim due rows with `UPDATE … FROM (SELECT … FOR UPDATE SKIP LOCKED) RETURNING previous`, send, then on failure restore the previous `last_sent_at` so the next run retries.
+- **Content:** a pure composer (`backend/reminders`) with HTML and text templates; the motivational line depends on the learner's state (not started, finished, away 7+ days, reviews due, nearly done, otherwise a rotating line).
+- **Compliance basics:** unsubscribe link with a confirmation page (GET is safe for link scanners) and RFC 8058 one-click headers.
+
+**Alternatives considered.** A provider SDK/HTTP API (simpler auth, but locks the code to one vendor); a queue + worker (overkill for one daily batch; on the roadmap with Redis); per-user send times (needs an hourly scheduler: not available on the free plan).
+
+**Consequences.**
+- (+) Free to run, provider-agnostic, safe under overlapping runs, fully tested without a mail server (`mail.Recorder`, fake SMTP server).
+- (−) One send time for everyone (~09:00 IST). Moving to an hourly scheduler (Pro plan or an external cron) would allow per-user times.
+- (−) Gmail SMTP caps at ~500 recipients/day and sends from your personal address; use a domain + Resend/Brevo when the group grows.
+- (−) Existing users must sign in once more to grant the email scope.

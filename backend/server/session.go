@@ -182,7 +182,7 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 		s.finishRedirect(w, r, "github", st.Next)
 		return
 	}
-	identity := store.Identity{GitHubID: profile.ID, Login: profile.Login, Name: profile.Name, AvatarURL: profile.AvatarURL}
+	identity := store.Identity{GitHubID: profile.ID, Login: profile.Login, Name: profile.Name, AvatarURL: profile.AvatarURL, Email: profile.Email}
 	if code := s.completeSignIn(w, r, identity, st.Invite); code != "" {
 		s.finishRedirect(w, r, code, st.Next)
 		return
@@ -224,6 +224,7 @@ func (s *Server) devLogin(w http.ResponseWriter, r *http.Request) {
 		Login  string `json:"login"`
 		Name   string `json:"name"`
 		Invite string `json:"invite"`
+		Email  string `json:"email"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -237,7 +238,7 @@ func (s *Server) devLogin(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = login
 	}
-	if code := s.completeSignIn(w, r, store.Identity{Login: login, Name: name}, body.Invite); code != "" {
+	if code := s.completeSignIn(w, r, store.Identity{Login: login, Name: name, Email: body.Email}, body.Invite); code != "" {
 		writeError(w, http.StatusForbidden, code, "Sign-in refused: "+code)
 		return
 	}

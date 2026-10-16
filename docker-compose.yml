@@ -1,6 +1,6 @@
 # Local full stack.
-#   docker compose up -d db                 # just Postgres, then `npm run dev:api` + `npm run dev`
-#   docker compose up --build               # everything: http://localhost:8080
+#   docker compose up -d db mail            # Postgres + Mailpit, then `npm run dev:api` + `npm run dev`
+#   docker compose up --build               # everything: http://localhost:8080, emails at http://localhost:8025
 services:
   db:
     image: postgres:16-alpine
@@ -14,6 +14,11 @@ services:
       interval: 2s
       retries: 20
 
+  # Catches every email the app sends; browse them at http://localhost:8025.
+  mail:
+    image: axllent/mailpit:v1.21
+    ports: ['1025:1025', '8025:8025']
+
   app:
     build: .
     depends_on:
@@ -26,6 +31,10 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       APP_URL: ${APP_URL:-http://localhost:8080}
       DEV_LOGIN: ${DEV_LOGIN:-1}
+      SMTP_HOST: mail
+      SMTP_PORT: '1025'
+      EMAIL_FROM: Frontend Loop <loop@localhost.test>
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
     ports: ['8080:8080']
 
 volumes:

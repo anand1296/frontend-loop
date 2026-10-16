@@ -23,6 +23,7 @@ import (
 
 	"github.com/anand1296/frontend-loop/backend/auth"
 	"github.com/anand1296/frontend-loop/backend/catalog"
+	"github.com/anand1296/frontend-loop/backend/mail"
 	"github.com/anand1296/frontend-loop/backend/store"
 	"github.com/anand1296/frontend-loop/content"
 )
@@ -40,6 +41,7 @@ type Server struct {
 	limiter  *limiter
 	log      *slog.Logger
 	now      func() time.Time
+	mailer   mail.Sender
 
 	settingsMu   sync.Mutex
 	settingsSnap *settingsSnapshot
@@ -59,8 +61,13 @@ func New(cfg Config, st *store.Store, repo []catalog.Section, log *slog.Logger) 
 		limiter:  newLimiter(),
 		log:      log,
 		now:      time.Now,
+		mailer: &mail.SMTP{Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername,
+			Password: cfg.SMTPPassword, From: cfg.EmailFrom},
 	}
 }
+
+// SetMailer replaces the email sender (tests use mail.Recorder).
+func (s *Server) SetMailer(m mail.Sender) { s.mailer = m }
 
 // SetClock replaces the clock (tests).
 func (s *Server) SetClock(now func() time.Time) { s.now = now }
@@ -113,6 +120,14 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/me/progress", s.signedIn(s.getProgress))
 	mux.HandleFunc("PUT /api/me/progress", s.signedIn(s.putProgress))
 	mux.HandleFunc("DELETE /api/me", s.signedIn(s.deleteMe))
+
+	// Email reminders
+	mux.HandleFunc("GET /api/me/reminders", s.signedIn(s.getReminders))
+	mux.HandleFunc("PUT /api/me/reminders", s.signedIn(s.putReminders))
+	mux.HandleFunc("POST /api/me/reminders/test", s.signedIn(s.testReminder))
+	mux.HandleFunc("GET /api/cron/reminders", s.cronReminders)
+	mux.HandleFunc("GET /api/reminders/unsubscribe", s.unsubscribePage)
+	mux.HandleFunc("POST /api/reminders/unsubscribe", s.unsubscribe)
 
 	// Admin console
 	admin := func(pattern string, h handlerWithUser) { mux.HandleFunc(pattern, s.adminOnly(h)) }
@@ -295,6 +310,12 @@ func (s *Server) withCSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+			return
+		}
+		// The unsubscribe link is authenticated by its token, not by cookies, so
+		// it can't be forged cross-site; mail providers POST to it directly (RFC 8058).
+		if r.URL.Path == "/api/reminders/unsubscribe" {
 			next.ServeHTTP(w, r)
 			return
 		}
