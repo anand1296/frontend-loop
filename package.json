@@ -1,8 +1,8 @@
 {
   "name": "frontend-loop",
   "private": true,
-  "version": "1.0.2",
-  "description": "A focused interview-prep app for senior, lead and principal frontend engineers.",
+  "version": "2.0.0",
+  "description": "Interview prep for senior, lead and principal engineers: a React app with a Go + Postgres backend, admin CMS, invites and synced progress.",
   "type": "module",
   "engines": {
     "node": ">=22.18"
@@ -17,7 +17,11 @@
     "content:check": "node scripts/check-content.ts",
     "check": "npm run content:check && npm run typecheck && npm test",
     "test:e2e": "playwright test",
-    "build:web": "npm run content:check && vite build"
+    "build:web": "npm run content:check && vite build",
+    "dev:api": "go run ./cmd/server",
+    "test:go": "go test ./...",
+    "build:web-esbuild": "node scripts/build-single-file.ts --web",
+    "test:e2e:server": "playwright test --project=server"
   },
   "dependencies": {
     "react": "^19.2.0",

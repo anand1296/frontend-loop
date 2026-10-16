@@ -21,6 +21,12 @@ import json from 'highlight.js/lib/languages/json';
 import diff from 'highlight.js/lib/languages/diff';
 import yaml from 'highlight.js/lib/languages/yaml';
 import graphql from 'highlight.js/lib/languages/graphql';
+import go from 'highlight.js/lib/languages/go';
+import sql from 'highlight.js/lib/languages/sql';
+import python from 'highlight.js/lib/languages/python';
+import dockerfile from 'highlight.js/lib/languages/dockerfile';
+import protobuf from 'highlight.js/lib/languages/protobuf';
+import ini from 'highlight.js/lib/languages/ini';
 import { ContentError } from './frontmatter.ts';
 
 hljs.registerLanguage('typescript', typescript);
@@ -32,6 +38,12 @@ hljs.registerLanguage('json', json);
 hljs.registerLanguage('diff', diff);
 hljs.registerLanguage('yaml', yaml);
 hljs.registerLanguage('graphql', graphql);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('dockerfile', dockerfile);
+hljs.registerLanguage('protobuf', protobuf);
+hljs.registerLanguage('ini', ini);
 
 interface LanguageDef {
   grammar: string | null;
@@ -56,6 +68,22 @@ const LANGUAGES: Record<string, LanguageDef> = {
   yaml: { grammar: 'yaml', label: 'YAML' },
   yml: { grammar: 'yaml', label: 'YAML' },
   graphql: { grammar: 'graphql', label: 'GraphQL' },
+  // Backend, cloud and data (for full-stack rounds). Keep in sync with backend/markdown/highlight.go.
+  go: { grammar: 'go', label: 'Go' },
+  golang: { grammar: 'go', label: 'Go' },
+  sql: { grammar: 'sql', label: 'SQL' },
+  python: { grammar: 'python', label: 'Python' },
+  py: { grammar: 'python', label: 'Python' },
+  dockerfile: { grammar: 'dockerfile', label: 'Dockerfile' },
+  docker: { grammar: 'dockerfile', label: 'Dockerfile' },
+  proto: { grammar: 'protobuf', label: 'Protobuf' },
+  protobuf: { grammar: 'protobuf', label: 'Protobuf' },
+  toml: { grammar: 'ini', label: 'TOML' },
+  ini: { grammar: 'ini', label: 'INI' },
+  // highlight.js has no HCL grammar; Terraform renders as plain text here and highlighted by the Go renderer.
+  hcl: { grammar: null, label: 'Terraform' },
+  terraform: { grammar: null, label: 'Terraform' },
+  tf: { grammar: null, label: 'Terraform' },
   http: { grammar: null, label: 'HTTP' },
   text: { grammar: null, label: 'Text' },
   txt: { grammar: null, label: 'Text' },

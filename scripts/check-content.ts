@@ -2,8 +2,13 @@
  * Validates every content file and prints a summary. Runs in CI before the build
  * so a malformed question fails fast with a file:line message.
  *
- * Usage: node scripts/check-content.ts
+ * Usage: node scripts/check-content.ts [--emit <file.json>]
+ *
+ * --emit writes the compiled sections + answer HTML as JSON. CI feeds that file
+ * to the Go renderer's parity test (backend/catalog), which checks that both
+ * renderers produce the same document for every answer.
  */
+import { writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileContent, readContentDir } from '../build/content/compile.ts';
@@ -12,7 +17,11 @@ import { ContentError } from '../build/content/frontmatter.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 try {
-  const { sections } = compileContent(readContentDir(join(root, 'content')));
+  const compiled = compileContent(readContentDir(join(root, 'content')));
+  const { sections } = compiled;
+  const emitAt = process.argv.indexOf('--emit');
+  const emitPath = emitAt === -1 ? undefined : process.argv[emitAt + 1];
+  if (emitPath) writeFileSync(emitPath, JSON.stringify(compiled));
   const rows = sections.map((section) => {
     const levels = { senior: 0, lead: 0, principal: 0 };
     for (const question of section.questions) levels[question.level] += 1;

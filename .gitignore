@@ -6,3 +6,7 @@ dist-single
 .vercel
 coverage
 test-results
+dist-web
+.env
+.env.local
+/server

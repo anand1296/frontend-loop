@@ -30,6 +30,8 @@ export interface QuestionMeta {
   summary: string;
   /** Lower-cased extra text (headings + opening paragraphs) used only for search. */
   searchText: string;
+  /** Server mode only: false for drafts, which only admins receive. */
+  published?: boolean;
 }
 
 export interface SectionMeta {
@@ -38,6 +40,8 @@ export interface SectionMeta {
   /** One-line description shown on the overview. */
   description: string;
   questions: QuestionMeta[];
+  /** Server mode only: false for draft rounds, which only admins receive. */
+  published?: boolean;
 }
 
 /** questionId -> sanitized, pre-highlighted answer HTML. */

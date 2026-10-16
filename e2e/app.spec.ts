@@ -54,6 +54,8 @@ test('ticking questions persists across reloads and drives "continue"', async ({
 
 test('search with the keyboard and deep links open the right question', async ({ page }) => {
   await page.goto('/');
+  // The app renders after its one boot request (backend probe), so wait for it before typing.
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await page.keyboard.press('ControlOrMeta+k');
   await page.keyboard.type('csrf samesite');
   await expect(page.locator('.search-result').first()).toBeVisible();

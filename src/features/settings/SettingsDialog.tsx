@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { allQuestions } from '../../content/index.ts';
+import { useContent } from '../../content/index.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog } from '../../components/primitives.tsx';
 import { parseProgress } from '../../state/progress.ts';
@@ -8,6 +8,8 @@ import { prefsStore, updatePrefs, type ThemePref } from '../../state/prefs.ts';
 import { progressActions, progressStore } from '../../state/progressStore.ts';
 import { useStore } from '../../state/useStore.ts';
 import { platformStore } from '../../platform/runtime.ts';
+import { useServer } from '../../platform/backend.ts';
+import { AccountSection } from '../account/Account.tsx';
 
 export const SYNC_COPY: Record<SyncStatus, string> = {
   local: 'Saved in this browser',
@@ -144,7 +146,9 @@ function ProgressTools() {
   );
 }
 
-export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SettingsDialog({ open, onClose, onSignIn }: { open: boolean; onClose: () => void; onSignIn: () => void }) {
+  const { allQuestions, source } = useContent();
+  const server = useServer();
   const theme = useStore(prefsStore, (p) => p.theme);
   const practiceMode = useStore(prefsStore, (p) => p.practiceMode);
   const sync = useStore(syncStatusStore, (s) => s);
@@ -195,12 +199,16 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           </label>
         </section>
 
+        <AccountSection onSignIn={onSignIn} />
+
         <section className="settings-section">
           <h3>Your progress</h3>
           <p className="settings-copy">
             <span className="sync-dot" data-status={sync} /> {SYNC_COPY[sync]}.{' '}
             {sync === 'synced' || sync === 'saving'
               ? 'Checkmarks, notes and review dates follow you to any device where you open this page signed in.'
+              : server.mode === 'server' && !server.user
+                ? 'Sign in to sync it across devices; what you do now is kept and added to your account.'
               : sync === 'readonly'
                 ? 'Your access to this page is view-only, so progress stays in this browser. Ask the person who shared it for Contributor access to sync across devices.'
                 : 'Use export and import to move it between browsers.'}
@@ -214,11 +222,12 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           {role === 'owner' ? (
             <p className="settings-copy">You own this app. Manage learners, announcements and invitations from Admin in the sidebar.</p>
           ) : null}
-          <ProgressTools />
+          {server.features.progressTransfer ? <ProgressTools /> : null}
         </section>
 
         <p className="settings-foot">
-          Frontend Loop · {allQuestions.length} questions · content compiled at build time
+          {server.site.name} · {allQuestions.length} questions ·{' '}
+          {source === 'server' ? 'content served by the Go backend' : 'content compiled at build time'}
         </p>
       </div>
     </Dialog>

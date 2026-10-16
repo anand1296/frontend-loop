@@ -3,14 +3,15 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: ['**']
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check:
+  # Frontend: content, types, unit tests, both builds, static-mode E2E.
+  web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +29,7 @@ jobs:
         run: npx vite build
       - name: Build (single file)
         run: npm run build:single
-      - name: E2E (Playwright, against vite preview)
+      - name: E2E (Playwright, static mode against vite preview)
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e
@@ -36,3 +37,80 @@ jobs:
         with:
           name: frontend-loop-single-file
           path: dist-single/frontend-loop.html
+
+  # Backend: formatting, vet, unit + integration tests against a real Postgres,
+  # and the parity test that compares the Go and TypeScript Markdown renderers.
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontend_loop_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-audit --no-fund
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: go vet
+        run: go vet ./...
+      - name: Renderer parity fixture (TypeScript compiler output)
+        run: node scripts/check-content.ts --emit "$RUNNER_TEMP/static.json"
+      - name: go test (with Postgres and parity)
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/frontend_loop_test?sslmode=disable
+        run: PARITY_FIXTURE="$RUNNER_TEMP/static.json" go test -race -count=1 ./...
+      - name: Build server binary
+        run: go build -o /tmp/server ./cmd/server
+
+  # Full stack: Vite build served by the Go server, Postgres, Playwright.
+  e2e-server:
+    runs-on: ubuntu-latest
+    needs: [web, go]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontend_loop
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-audit --no-fund
+      - run: npx vite build
+      - name: Start the Go server
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/frontend_loop?sslmode=disable
+          OWNER_GITHUB_LOGIN: anand1296
+          DEV_LOGIN: '1'
+        run: |
+          go build -o /tmp/server ./cmd/server
+          /tmp/server -addr :8080 -static dist > /tmp/server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8080/api/health && break; sleep 1; done
+      - name: E2E (Playwright, full stack)
+        env:
+          E2E_SERVER_URL: http://localhost:8080
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e:server
+      - name: Server log
+        if: always()
+        run: cat /tmp/server.log

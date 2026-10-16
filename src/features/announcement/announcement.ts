@@ -10,6 +10,10 @@ import { getPlatform, paths } from '../../platform/runtime.ts';
 export interface Announcement {
   message: string;
   updatedAt: number;
+  /** Server mode extras (the Artifact version only has a message). */
+  tone?: 'info' | 'success' | 'warning';
+  linkUrl?: string;
+  linkLabel?: string;
 }
 
 export const ANNOUNCEMENT_LIMIT = 280;

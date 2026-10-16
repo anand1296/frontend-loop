@@ -1,0 +1,89 @@
+package markdown
+
+import (
+	"strings"
+	"testing"
+)
+
+func render(t *testing.T, src string) Result {
+	t.Helper()
+	res, err := New().Render(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func TestCallouts(t *testing.T) {
+	cases := map[string]string{
+		"marker on its own line": "> [!TIP]\n> Say the trade-off out loud.",
+		"marker inline":          "> [!TIP] Say the trade-off out loud.",
+		"blank line after":       "> [!TIP]\n>\n> Say the trade-off out loud.",
+	}
+	for name, src := range cases {
+		html := render(t, src).HTML
+		want := `<aside class="callout callout-tip"><p class="callout-label">Tip</p><p>Say the trade-off out loud.</p>` + "\n</aside>\n"
+		if html != want {
+			t.Errorf("%s:\n got %q\nwant %q", name, html, want)
+		}
+	}
+	if html := render(t, "> [!note] lower case is a plain quote").HTML; !strings.HasPrefix(html, "<blockquote>") {
+		t.Errorf("lower-case marker should stay a blockquote: %s", html)
+	}
+	if _, err := New().Render("> [!DANGER]\n> x"); err == nil || !IsContentError(err) {
+		t.Errorf("unknown callout should be a content error, got %v", err)
+	}
+}
+
+func TestSummaryAndText(t *testing.T) {
+	res := render(t, "> [!TLDR]\n> Use `useMemo` for **expensive** work, see [docs](https://react.dev).\n\n### More\n\nBody text.\n\n```ts\nconst hidden = 1;\n```")
+	if res.Summary != "Use useMemo for expensive work, see docs." {
+		t.Errorf("summary: %q", res.Summary)
+	}
+	if strings.Contains(res.Text, "hidden") || !strings.Contains(res.Text, "Body text.") {
+		t.Errorf("search text should skip code: %q", res.Text)
+	}
+}
+
+func TestSafety(t *testing.T) {
+	html := render(t, "<div onclick=x>hi</div>\n\nA <em>raw</em> [bad](javascript:alert(1)) [rel](/x) [proto](//evil.example) ![pic](https://x/y.png)").HTML
+	for _, bad := range []string{"<div", "<em>", "javascript:", `href="//evil`, "<img"} {
+		if strings.Contains(html, bad) {
+			t.Errorf("unsafe %q in %s", bad, html)
+		}
+	}
+	if !strings.Contains(html, `<a href="/x">rel</a>`) {
+		t.Errorf("same-origin links should survive: %s", html)
+	}
+}
+
+func TestCodeFigure(t *testing.T) {
+	html := render(t, "```tsx\nconst el = <a href=\"x\">{'<'}</a>;\n```").HTML
+	if !strings.HasPrefix(html, `<figure class="code"><figcaption><span>TSX</span><button type="button" class="copy-code" data-copy-code>Copy</button></figcaption><pre><code class="hljs">`) {
+		t.Errorf("figure shape: %s", html)
+	}
+	if strings.Contains(html, "<a href") || !strings.HasSuffix(html, "</code></pre></figure>\n") {
+		t.Errorf("code must be escaped and trimmed: %s", html)
+	}
+	if strings.Contains(html, "\n</code>") {
+		t.Errorf("trailing newline should be trimmed: %q", html)
+	}
+}
+
+// Every fence language must have a working lexer (backend rounds use Go, SQL, Terraform...).
+func TestEveryLanguageHighlights(t *testing.T) {
+	r := New()
+	for name := range Languages {
+		if name == "" {
+			continue
+		}
+		res, err := r.Render("```" + name + "\nx := 1 // a\n```")
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if !strings.Contains(res.HTML, "<figure class=\"code\">") {
+			t.Errorf("%s: no code figure", name)
+		}
+	}
+}

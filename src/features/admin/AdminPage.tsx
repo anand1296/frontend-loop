@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { allQuestions, sections, sectionsById } from '../../content/index.ts';
+import { useContent } from '../../content/index.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { ProgressBar } from '../../components/primitives.tsx';
 import { formatDayDistance, percent, plural } from '../../lib/format.ts';
@@ -215,6 +215,7 @@ function AnnouncementEditor() {
 
 function LearnersPanel({ state, myUid }: { state: LoadState; myUid: string | null }) {
   const rows = state.status === 'ready' ? state.rows : [];
+  const { allQuestions, sections, sectionsById } = useContent();
   const profiles = useProfiles(rows.map((row) => row.uid));
   const [now] = useState(() => Date.now());
   const total = allQuestions.length;
@@ -320,6 +321,7 @@ function LearnersPanel({ state, myUid }: { state: LoadState; myUid: string | nul
 }
 
 export function AdminPage() {
+  const { allQuestions, sections } = useContent();
   const { role, uid } = useStore(platformStore, (p) => p);
   const learners = useLearners();
 
