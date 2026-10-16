@@ -50,18 +50,44 @@ func (l *Lazy) get(ctx context.Context) (http.Handler, error) {
 	return h, err
 }
 
+// SetupStatus says which pieces of configuration are present. Booleans only:
+// it never reveals a value, so it is safe to serve to anyone.
+type SetupStatus struct {
+	Database bool `json:"database"`
+	GitHub   bool `json:"github"`
+	Owner    bool `json:"owner"`
+	AppURL   bool `json:"appUrl"`
+}
+
+// Setup reports the configuration checklist for this deployment.
+func (c Config) Setup() SetupStatus {
+	return SetupStatus{
+		Database: c.DatabaseURL != "",
+		GitHub:   c.GitHubClientID != "" && c.GitHubClientSecret != "",
+		Owner:    c.OwnerLogin != "",
+		AppURL:   c.PublicURL != "",
+	}
+}
+
+func writeSetup(w http.ResponseWriter, code, message string, setup SetupStatus) {
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+		"error": apiError{Code: code, Message: message},
+		"setup": setup,
+	})
+}
+
 func (l *Lazy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if l.cfg.DatabaseURL == "" {
-		// Deployed without a database: the frontend sees 503 on /api/bootstrap
-		// and falls back to its built-in, local-only mode.
-		writeError(w, http.StatusServiceUnavailable, "not_configured", "The backend has no DATABASE_URL configured.")
+		// Deployed without a database: the frontend shows a setup checklist
+		// (and lets people study offline meanwhile) instead of failing.
+		writeSetup(w, "not_configured", "This deployment has no database yet: set DATABASE_URL (see docs/DEPLOYMENT.md).", l.cfg.Setup())
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 	h, err := l.get(ctx)
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "starting", "The backend is starting or can't reach its database. Try again shortly.")
+		writeSetup(w, "unavailable", "The backend can't reach its database right now. Try again in a moment.", l.cfg.Setup())
 		return
 	}
 	h.ServeHTTP(w, r)

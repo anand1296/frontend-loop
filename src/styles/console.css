@@ -632,3 +632,134 @@ fieldset {
   color: var(--ink-3);
   font-family: var(--font-body);
 }
+
+/* ---------- Sign-in and setup screens ---------- */
+.auth-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(60rem 30rem at 50% -10%, var(--accent-soft), transparent 70%),
+    var(--paper);
+}
+
+.auth-card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 32px 28px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.auth-card-wide {
+  width: min(600px, 100%);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.auth-card h1 {
+  font-size: var(--step-3);
+}
+
+.auth-lede {
+  color: var(--ink-2);
+}
+
+.auth-note {
+  font-size: 0.9rem;
+  color: var(--ink-2);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.auth-note.is-error {
+  background: var(--due-soft);
+  color: var(--ink);
+}
+
+.auth-note.is-invite {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.auth-note.is-invite svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.auth-foot {
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.auth-card .signin-options input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.setup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setup-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.setup-mark {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 2px solid var(--line-strong);
+  border-radius: 50%;
+}
+
+.setup-list li[data-done='true'] .setup-mark {
+  border-color: var(--done);
+  background: var(--done);
+  color: var(--surface);
+}
+
+.setup-detail {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.auth-card a {
+  color: var(--accent);
+  font-weight: 600;
+}

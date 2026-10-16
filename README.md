@@ -101,7 +101,7 @@ Click **Sign in** → *Developer sign-in* → `anand1296` to be the owner. Or ru
 
 The repo is ready for Vercel: the Vite frontend is static and `api/index.go` is a Go serverless function. Step by step in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**; in short:
 
-1. Import the repo in Vercel and deploy (works immediately in local-only mode).
+1. Import the repo in Vercel and deploy. Until the next steps are done the site shows a **setup checklist** (with a *Study offline* option).
 2. Vercel → Storage → create a **Neon** Postgres database and connect it (sets `DATABASE_URL`).
 3. Create a **GitHub OAuth app** with callback `https://<your-app>.vercel.app/api/auth/github/callback`.
 4. Set `OWNER_GITHUB_LOGIN`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `APP_URL`; redeploy.

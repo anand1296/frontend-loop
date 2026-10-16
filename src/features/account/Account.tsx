@@ -43,7 +43,7 @@ export function Avatar({ user, size = 28 }: { user: Pick<ServerUser, 'avatarUrl'
 }
 
 /** GitHub button plus, on local/dev deployments, a password-less form. */
-function SignInOptions({ invite }: { invite?: string }) {
+export function SignInOptions({ invite }: { invite?: string }) {
   const { auth } = useServer();
   const [login, setLogin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -224,26 +224,6 @@ export function AuthErrorDialog({ onSignIn }: { onSignIn: () => void }) {
         </div>
       </div>
     </Dialog>
-  );
-}
-
-/** Members-only site, signed out. */
-export function LockedPage() {
-  const { site } = useServer();
-  return (
-    <article className="page">
-      <header className="page-header">
-        <p className="eyebrow">Members only</p>
-        <h1>{site.name}</h1>
-        <p className="lede">
-          {site.tagline || 'Interview prep for senior, lead and principal frontend engineers.'} Sign in to start studying.
-        </p>
-      </header>
-      <div className="admin-card locked-card">
-        <SignInOptions />
-        <p className="admin-note">No account yet? Ask the admin for an invite link.</p>
-      </div>
-    </article>
   );
 }
 
