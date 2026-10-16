@@ -22,6 +22,8 @@ type readerQuestion struct {
 	Summary    string   `json:"summary"`
 	SearchText string   `json:"searchText"`
 	Published  bool     `json:"published"`
+	// Contributor is the GitHub login credited for a community question.
+	Contributor string `json:"contributor,omitempty"`
 }
 
 type readerSection struct {
@@ -42,7 +44,7 @@ func toReader(idx store.Index) readerContent {
 	for _, sec := range idx.Sections {
 		rs := readerSection{ID: sec.ID, Title: sec.Title, Description: sec.Description, Published: sec.Published, Questions: make([]readerQuestion, 0, len(sec.Questions))}
 		for _, q := range sec.Questions {
-			rs.Questions = append(rs.Questions, readerQuestion{q.ID, q.SectionID, q.Title, q.Level, q.Tags, q.Minutes, q.Summary, q.SearchText, q.Published})
+			rs.Questions = append(rs.Questions, readerQuestion{q.ID, q.SectionID, q.Title, q.Level, q.Tags, q.Minutes, q.Summary, q.SearchText, q.Published, q.Contributor})
 		}
 		out.Sections = append(out.Sections, rs)
 	}
@@ -83,6 +85,11 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	if signedIn {
 		body["user"] = publicUser{user.ID, user.Login, user.Name, user.AvatarURL, user.Role}
+		if user.IsAdmin() {
+			if n, err := s.store.CountPendingSubmissions(r.Context(), 0); err == nil {
+				body["pendingSubmissions"] = n
+			}
+		}
 	}
 	if !s.canRead(r) {
 		body["locked"] = true

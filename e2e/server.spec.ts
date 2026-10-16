@@ -149,3 +149,39 @@ test('the owner sees progress; strangers need an invite', async ({ browser }) =>
   await signIn(stranger.page, 'stranger');
   await expect(stranger.page.locator('.auth-screen').getByRole('alert')).toContainText("isn't on the list");
 });
+
+test('a learner contributes a question; it goes live only after the owner approves it', async ({ browser }) => {
+  const learner = await newPage(browser);
+  await learner.page.goto('/');
+  await signIn(learner.page, 'priya');
+  await learner.page.locator('aside.sidebar').getByRole('button', { name: 'Contribute' }).click();
+  await learner.page.getByRole('button', { name: 'Write a question' }).click();
+  const form = learner.page.getByRole('form', { name: 'Submit a question' });
+  await form.getByRole('textbox', { name: 'Question' }).fill('How would you debounce a search box?');
+  await form.getByRole('textbox', { name: /Tags/ }).fill('react, performance');
+  await form.getByRole('textbox', { name: /Your answer/ }).fill(
+    '> [!TLDR]\n> Wait for typing to pause, abort the stale request, keep only the latest result.\n\n### How it works\n\n' +
+      'A timer resets on every keystroke; when it fires, the request starts and the previous one is aborted. '.repeat(3),
+  );
+  await form.getByRole('button', { name: 'Send for review' }).click();
+  await expect(learner.page.locator('.contrib-list')).toContainText('Waiting for review');
+
+  // Not visible to anyone before review.
+  const search = await learner.page.evaluate(() => fetch('/api/bootstrap').then((r) => r.text()));
+  expect(search).not.toContain('debounce a search box');
+
+  const owner = await newPage(browser);
+  await owner.page.goto('/');
+  await signIn(owner.page, OWNER);
+  await owner.page.locator('aside.sidebar').getByRole('button', { name: /Admin/ }).click();
+  await owner.page.getByRole('tab', { name: /Submissions/ }).click();
+  await owner.page.locator('.contrib-list').getByRole('button', { name: 'Review' }).click();
+  await owner.page.getByLabel(/Note to @priya/).fill('Great one, thanks!');
+  await owner.page.getByRole('button', { name: 'Approve and add' }).click();
+  await expect(owner.page.getByText(/Added “How would you debounce a search box\?”/)).toBeVisible();
+
+  await learner.page.goto('/#how-would-you-debounce-a-search-box');
+  await learner.page.reload();
+  await expect(learner.page.locator('.contributor-line')).toContainText('@priya');
+  expect([...learner.errors, ...owner.errors]).toEqual([]);
+});

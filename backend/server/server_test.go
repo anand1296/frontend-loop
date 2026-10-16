@@ -1010,3 +1010,123 @@ func testLogOutput() io.Writer {
 	}
 	return io.Discard
 }
+
+func TestQuestionSubmissions(t *testing.T) {
+	e := newEnv(t)
+	outbox := &mail.Recorder{}
+	e.app.SetMailer(outbox)
+	owner := e.anon()
+	expect(t, owner.do("POST", "/api/auth/dev-login", map[string]string{"login": "owner", "email": "owner@example.com"}), 200)
+	var inv struct {
+		URL string `json:"url"`
+	}
+	owner.do("POST", "/api/admin/invites", map[string]any{"maxUses": 1}).json(t, &inv)
+	learner := e.anon()
+	expect(t, learner.do("POST", "/api/auth/dev-login", map[string]string{"login": "sam", "email": "sam@example.com", "invite": inv.URL[strings.Index(inv.URL, "=")+1:]}), 200)
+
+	proposal := map[string]any{"sectionId": "basics", "title": "How would you debounce a search box?", "level": "senior",
+		"tags": []string{"React", "performance"}, "body": goodBody, "context": "Asked in a phone screen", "credit": true}
+
+	// Preview and validation use the same bar as published questions.
+	var preview struct {
+		HTML     string               `json:"html"`
+		Problems []catalog.FieldError `json:"problems"`
+	}
+	learner.do("POST", "/api/submissions/preview", map[string]any{"sectionId": "basics", "title": "Short", "level": "lead", "tags": []string{"x"}, "body": "too short"}).json(t, &preview)
+	if len(preview.Problems) == 0 {
+		t.Fatal("preview should report problems for a short answer")
+	}
+	expect(t, learner.do("POST", "/api/submissions", map[string]any{"title": "No round", "level": "lead", "tags": []string{"x"}, "body": goodBody}), 422)
+	r := learner.do("POST", "/api/submissions", proposal)
+	expect(t, r, 201)
+	var sub struct {
+		ID         int64   `json:"id"`
+		Status     string  `json:"status"`
+		QuestionID *string `json:"questionId"`
+		ReviewNote string  `json:"reviewNote"`
+	}
+	r.json(t, &sub)
+	if sub.Status != "pending" {
+		t.Fatalf("new submissions are pending: %+v", sub)
+	}
+	if msgs := outbox.Messages(); len(msgs) != 1 || msgs[0].To != "owner@example.com" || !strings.Contains(msgs[0].Subject, "New question to review") {
+		t.Fatalf("owner should be notified: %+v", msgs)
+	}
+	// Nothing is visible to learners before review; admins see a badge count.
+	if contains(learner.bootstrap().questionIDs(), "how-would-you-debounce") {
+		t.Fatal("unreviewed submission leaked")
+	}
+	var boot struct {
+		Pending int `json:"pendingSubmissions"`
+	}
+	owner.do("GET", "/api/bootstrap", nil).json(t, &boot)
+	if boot.Pending != 1 {
+		t.Fatalf("admin badge: %d", boot.Pending)
+	}
+	expect(t, learner.do("GET", "/api/admin/submissions", nil), 403)
+
+	// Approve (the reviewer can adjust the question first).
+	approve := map[string]any{"note": "Great one", "question": map[string]any{"id": "debounce-search-box", "sectionId": "basics",
+		"title": "How would you debounce a search box?", "level": "senior", "tags": []string{"react"}, "minutes": 8, "body": goodBody, "published": true}}
+	r = owner.do("POST", fmt.Sprintf("/api/admin/submissions/%d/approve", sub.ID), approve)
+	expect(t, r, 200)
+	r.json(t, &sub)
+	if sub.Status != "approved" || sub.QuestionID == nil || *sub.QuestionID != "debounce-search-box" {
+		t.Fatalf("approve: %+v", sub)
+	}
+	if r := owner.do("POST", fmt.Sprintf("/api/admin/submissions/%d/approve", sub.ID), approve); r.code() != "not_pending" {
+		t.Fatalf("double approval must fail: %s", r.body)
+	}
+	var b struct {
+		Content struct {
+			Sections []struct {
+				Questions []struct {
+					ID          string `json:"id"`
+					Contributor string `json:"contributor"`
+				} `json:"questions"`
+			} `json:"sections"`
+		} `json:"content"`
+	}
+	learner.do("GET", "/api/bootstrap", nil).json(t, &b)
+	credited := false
+	for _, s := range b.Content.Sections {
+		for _, q := range s.Questions {
+			credited = credited || (q.ID == "debounce-search-box" && q.Contributor == "sam")
+		}
+	}
+	if !credited {
+		t.Fatal("approved question should be published and credited to @sam")
+	}
+	if msgs := outbox.Messages(); len(msgs) != 2 || msgs[1].To != "sam@example.com" || !strings.Contains(msgs[1].HTML, "/#debounce-search-box") {
+		t.Fatalf("submitter should hear about the approval: %+v", msgs)
+	}
+
+	// Reject with a note; withdraw; rate limits.
+	second := map[string]any{"newSectionTitle": "Web Components", "title": "What does shadow DOM isolate?", "level": "lead",
+		"tags": []string{"web components"}, "body": goodBody, "credit": false}
+	learner.do("POST", "/api/submissions", second).json(t, &sub)
+	expect(t, owner.do("POST", fmt.Sprintf("/api/admin/submissions/%d/reject", sub.ID), map[string]string{"note": "Already covered in Browser Platform"}), 200)
+	var mine []struct {
+		Status     string `json:"status"`
+		ReviewNote string `json:"reviewNote"`
+	}
+	learner.do("GET", "/api/me/submissions", nil).json(t, &mine)
+	if len(mine) != 2 || mine[0].Status != "rejected" || mine[0].ReviewNote != "Already covered in Browser Platform" {
+		t.Fatalf("my submissions: %+v", mine)
+	}
+	learner.do("POST", "/api/submissions", second).json(t, &sub)
+	expect(t, learner.do("DELETE", fmt.Sprintf("/api/me/submissions/%d", sub.ID), nil), 200)
+	expect(t, learner.do("DELETE", fmt.Sprintf("/api/me/submissions/%d", sub.ID), nil), 409)
+	expect(t, learner.do("POST", "/api/submissions", second), 201)
+	expect(t, learner.do("POST", "/api/submissions", second), 201)
+	if r := learner.do("POST", "/api/submissions", second); r.status != 429 {
+		t.Fatalf("expected the daily limit after 5 submissions, got %d", r.status)
+	}
+
+	// The admin switch closes submissions.
+	expect(t, owner.do("PUT", "/api/admin/settings/features", map[string]bool{"contribute": false}), 200)
+	e.now = e.now.Add(25 * time.Hour)
+	if r := learner.do("POST", "/api/submissions", second); r.code() != "disabled" {
+		t.Fatalf("expected disabled, got %s", r.body)
+	}
+}

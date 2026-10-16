@@ -60,8 +60,10 @@ src/
   features/account/           sign-in and setup screens (Gate.tsx), sign-in dialog, invite dialog, sign-in errors, account settings
   features/reminders/         Settings → Email reminders (opt-in, frequency, test email)
   features/console/           admin console (server mode): content manager + question editor, learners, invites,
-                              features & settings, activity
+                              submissions review, features & settings, activity
   features/admin/             owner dashboard for the claude.ai Artifact build
+  features/howItsBuilt/       "How it's built": walkthrough index + reader (virtual:walkthroughs, lazy bodies)
+  features/contribute/        Contribute page: question submission form, my submissions, PR guide
   app/App.tsx                 shell: sidebar, mobile drawer, top bar, view switch, global shortcuts
   app/Sidebar.tsx             navigation with per-round progress
   features/overview/          resume card, review card, loop ring, rounds list

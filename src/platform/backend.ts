@@ -32,7 +32,17 @@ export interface SiteSettings {
   contentAccess: 'public' | 'members';
 }
 
-export const FEATURE_KEYS = ['review', 'search', 'notes', 'filters', 'progressTransfer', 'levelOverview', 'emailReminders'] as const;
+export const FEATURE_KEYS = [
+  'review',
+  'search',
+  'notes',
+  'filters',
+  'progressTransfer',
+  'levelOverview',
+  'emailReminders',
+  'howItsBuilt',
+  'contribute',
+] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 export type Features = Record<FeatureKey, boolean>;
 
@@ -60,6 +70,8 @@ export interface ServerState {
   email: boolean;
   /** Members-only site and nobody signed in: content is withheld. */
   locked: boolean;
+  /** Admins only: community question submissions waiting for review. */
+  pendingSubmissions: number;
 }
 
 const ALL_ON = Object.fromEntries(FEATURE_KEYS.map((key) => [key, true])) as Features;
@@ -75,6 +87,7 @@ export const serverStore = createStore<ServerState>({
   auth: { github: false, dev: false },
   email: false,
   locked: false,
+  pendingSubmissions: 0,
 });
 
 export function useServer(): ServerState {
@@ -112,6 +125,7 @@ function parseQuestion(value: unknown): QuestionMeta | null {
     summary: str(value.summary),
     searchText: str(value.searchText),
     published: value.published !== false,
+    ...(typeof value.contributor === 'string' && value.contributor ? { contributor: value.contributor } : {}),
   };
 }
 
@@ -171,6 +185,7 @@ function apply(body: Record<string, unknown>): void {
     auth: { github: auth.github === true, dev: auth.dev === true },
     email: body.email === true,
     locked: body.locked === true,
+    pendingSubmissions: typeof body.pendingSubmissions === 'number' ? body.pendingSubmissions : 0,
   }));
   const content = isRecord(body.content) ? body.content : null;
   setContent(content ? parseSections(content.sections) : [], 'server', content && typeof content.version === 'number' ? content.version : -1);

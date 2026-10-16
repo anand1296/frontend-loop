@@ -32,6 +32,8 @@ export interface QuestionMeta {
   searchText: string;
   /** Server mode only: false for drafts, which only admins receive. */
   published?: boolean;
+  /** Server mode only: GitHub login of the community member who contributed it (if they chose credit). */
+  contributor?: string;
 }
 
 export interface SectionMeta {

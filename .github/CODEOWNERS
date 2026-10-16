@@ -1,0 +1,4 @@
+# Every change needs a review from the repository owner.
+# With branch protection's "Require review from Code Owners" switched on,
+# no pull request can merge into main without @anand1296's approval.
+* @anand1296

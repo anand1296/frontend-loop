@@ -35,6 +35,7 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
   const dueCount = useMemo(() => dueQuestions(allQuestions, progress, now).length, [allQuestions, progress, now]);
   const activeSection = route.name === 'section' ? route.sectionId : null;
   const roundsLabelId = useId();
+  const behindLabelId = useId();
 
   const go = (target: Parameters<typeof navigate>[0]): void => {
     navigate(target);
@@ -97,6 +98,11 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
               >
                 <Icon name="shield" size={18} />
                 <span>Admin</span>
+                {server.pendingSubmissions > 0 ? (
+                  <span className="badge" aria-label={`${server.pendingSubmissions} to review`}>
+                    {server.pendingSubmissions}
+                  </span>
+                ) : null}
                 <span className="role-chip">{adminChip}</span>
               </button>
             </li>
@@ -136,6 +142,42 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
             );
           })}
         </ol>
+
+        {features.howItsBuilt || features.contribute ? (
+          <>
+            <p className="nav-label nav-label-behind" id={behindLabelId}>
+              Behind the scenes
+            </p>
+            <ul className="nav-list" aria-labelledby={behindLabelId}>
+              {features.howItsBuilt ? (
+                <li>
+                  <button
+                    type="button"
+                    className="nav-item"
+                    aria-current={route.name === 'howItsBuilt' ? 'page' : undefined}
+                    onClick={() => go({ name: 'howItsBuilt', walkthroughId: null })}
+                  >
+                    <Icon name="code" size={18} />
+                    <span>How it's built</span>
+                  </button>
+                </li>
+              ) : null}
+              {features.contribute ? (
+                <li>
+                  <button
+                    type="button"
+                    className="nav-item"
+                    aria-current={route.name === 'contribute' ? 'page' : undefined}
+                    onClick={() => go({ name: 'contribute' })}
+                  >
+                    <Icon name="pullRequest" size={18} />
+                    <span>Contribute</span>
+                  </button>
+                </li>
+              ) : null}
+            </ul>
+          </>
+        ) : null}
       </nav>
 
       <div className="sidebar-foot">

@@ -20,16 +20,27 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileContent, readContentDir, type CompiledContent } from '../build/content/compile.ts';
 import { INDEX_MODULE_ID, indexModuleCode, SECTION_MODULE_PREFIX, sectionModuleCode } from '../build/content/codegen.ts';
+import {
+  compileWalkthroughs,
+  currentCommit,
+  readWalkthroughDir,
+  WALKTHROUGHS_INDEX_ID,
+  walkthroughsContentCode,
+  walkthroughsIndexCode,
+  type CompiledWalkthroughs,
+} from '../build/walkthroughs/compile.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'dist-single');
 
-function contentPlugin(content: CompiledContent): Plugin {
+function contentPlugin(content: CompiledContent, walkthroughs: CompiledWalkthroughs): Plugin {
   return {
     name: 'frontend-loop:content',
     setup(builder) {
-      builder.onResolve({ filter: /^virtual:content/ }, (args) => ({ path: args.path, namespace: 'virtual-content' }));
+      builder.onResolve({ filter: /^virtual:(content|walkthroughs)/ }, (args) => ({ path: args.path, namespace: 'virtual-content' }));
       builder.onLoad({ filter: /.*/, namespace: 'virtual-content' }, (args) => {
+        if (args.path === WALKTHROUGHS_INDEX_ID) return { contents: walkthroughsIndexCode(walkthroughs), loader: 'js' };
+        if (args.path.startsWith(WALKTHROUGHS_INDEX_ID)) return { contents: walkthroughsContentCode(walkthroughs), loader: 'js' };
         if (args.path === INDEX_MODULE_ID) return { contents: indexModuleCode(content), loader: 'js' };
         const sectionId = args.path.slice(SECTION_MODULE_PREFIX.length);
         return { contents: sectionModuleCode(content.answers[sectionId]), loader: 'js' };
@@ -40,6 +51,7 @@ function contentPlugin(content: CompiledContent): Plugin {
 
 const started = performance.now();
 const content = compileContent(readContentDir(join(root, 'content')));
+const walkthroughs = compileWalkthroughs(readWalkthroughDir(join(root, 'walkthroughs')), { root, commit: currentCommit(root) });
 
 const result = await build({
   entryPoints: [join(root, 'src/main.tsx')],
@@ -53,7 +65,7 @@ const result = await build({
   minify: true,
   legalComments: 'none',
   define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'false', 'import.meta.env': '{}' },
-  plugins: [contentPlugin(content)],
+  plugins: [contentPlugin(content, walkthroughs)],
   logLevel: 'warning',
 });
 
@@ -122,7 +134,7 @@ if (process.argv.includes('--web')) {
     minify: true,
     legalComments: 'none',
     define: { 'process.env.NODE_ENV': '"production"', __BACKEND__: 'true', 'import.meta.env': '{}' },
-    plugins: [contentPlugin(content)],
+    plugins: [contentPlugin(content, walkthroughs)],
     logLevel: 'warning',
   });
   const webDir = join(root, 'dist-web');

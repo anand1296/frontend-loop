@@ -15,6 +15,9 @@ export type Route =
   | { name: 'overview' }
   | { name: 'review' }
   | { name: 'admin' }
+  | { name: 'contribute' }
+  /** "How it's built": the index (`walkthroughId: null`) or one walkthrough. */
+  | { name: 'howItsBuilt'; walkthroughId: string | null }
   /** `focusAt` changes on every navigation, so re-selecting the same question re-scrolls. */
   | { name: 'section'; sectionId: string; questionId: string | null; focusAt: number };
 
@@ -22,6 +25,9 @@ export function parseHash(hash: string): Route {
   const token = decodeURIComponent(hash.replace(/^#/, ''));
   if (token === 'review') return { name: 'review' };
   if (token === 'admin') return { name: 'admin' };
+  if (token === 'contribute') return { name: 'contribute' };
+  if (token === 'how-its-built') return { name: 'howItsBuilt', walkthroughId: null };
+  if (token.startsWith('how-its-built/')) return { name: 'howItsBuilt', walkthroughId: token.slice('how-its-built/'.length) || null };
   const { sectionsById, questionsById } = getContent();
   if (sectionsById.has(token)) return { name: 'section', sectionId: token, questionId: null, focusAt: Date.now() };
   const question = questionsById.get(token);
@@ -37,6 +43,10 @@ export function routeToHash(route: Route): string {
       return 'review';
     case 'admin':
       return 'admin';
+    case 'contribute':
+      return 'contribute';
+    case 'howItsBuilt':
+      return route.walkthroughId ? `how-its-built/${route.walkthroughId}` : 'how-its-built';
     case 'section':
       return route.questionId ?? route.sectionId;
   }
@@ -56,6 +66,8 @@ export type RouteTarget =
   | { name: 'overview' }
   | { name: 'review' }
   | { name: 'admin' }
+  | { name: 'contribute' }
+  | { name: 'howItsBuilt'; walkthroughId: string | null }
   | { name: 'section'; sectionId: string; questionId?: string | null };
 
 export function navigate(target: RouteTarget): void {

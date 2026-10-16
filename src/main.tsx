@@ -13,6 +13,7 @@ import './styles/layout.css';
 import './styles/components.css';
 import './styles/prose.css';
 import './styles/console.css';
+import './styles/behind.css';
 
 async function boot(): Promise<void> {
   initPrefs();

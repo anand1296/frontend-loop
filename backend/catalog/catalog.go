@@ -34,7 +34,7 @@ const (
 )
 
 // ReservedIDs are route tokens the app uses itself; content may not claim them.
-var ReservedIDs = map[string]bool{"review": true, "admin": true, "console": true, "invite": true, "api": true}
+var ReservedIDs = map[string]bool{"review": true, "admin": true, "console": true, "invite": true, "api": true, "how-its-built": true, "contribute": true}
 
 var idPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
@@ -125,7 +125,7 @@ func (s *Section) Normalize() {
 func (s Section) Validate() Problems {
 	var p Problems
 	if !ValidID(s.ID) {
-		p.add("id", "must be kebab-case (a-z, 0-9, single hyphens), at most 80 characters, and not one of: review, admin, console, invite, api")
+		p.add("id", "must be kebab-case (a-z, 0-9, single hyphens), at most 80 characters, and not one of: review, admin, console, invite, api, how-its-built, contribute")
 	}
 	if s.Title == "" {
 		p.add("title", "is required")

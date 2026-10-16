@@ -1,5 +1,5 @@
 /**
- * Validates every content file and prints a summary. Runs in CI before the build
+ * Validates every content file and walkthrough and prints a summary. Runs in CI before the build
  * so a malformed question fails fast with a file:line message.
  *
  * Usage: node scripts/check-content.ts [--emit <file.json>]
@@ -13,6 +13,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileContent, readContentDir } from '../build/content/compile.ts';
 import { ContentError } from '../build/content/frontmatter.ts';
+import { compileWalkthroughs, currentCommit, readWalkthroughDir } from '../build/walkthroughs/compile.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -31,6 +32,11 @@ try {
   console.table(rows);
   const total = rows.reduce((sum, row) => sum + row.questions, 0);
   console.log(`OK: ${sections.length} sections, ${total} questions`);
+
+  // "How it's built" walkthroughs: every repo: link and code excerpt must resolve.
+  const walkthroughs = compileWalkthroughs(readWalkthroughDir(join(root, 'walkthroughs')), { root, commit: currentCommit(root) });
+  const files = new Set(walkthroughs.items.flatMap((item) => item.files));
+  console.log(`OK: ${walkthroughs.items.length} walkthroughs referencing ${files.size} repository files`);
 } catch (error) {
   if (error instanceof ContentError) {
     console.error(`Content error: ${error.message}`);

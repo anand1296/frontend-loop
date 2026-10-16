@@ -1,0 +1,50 @@
+name: Propose an interview question
+description: Share a question you were asked in a senior, lead or principal frontend interview. The owner reviews it before it's added.
+title: "Question: "
+labels: [question-proposal]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing! Please leave out anything confidential (company secrets, NDA material, names).
+        Members of the hosted app can also submit this inside the app under **Behind the scenes → Contribute**.
+  - type: input
+    id: question
+    attributes:
+      label: The question
+      description: As the interviewer asked it.
+    validations:
+      required: true
+  - type: dropdown
+    id: level
+    attributes:
+      label: Level
+      options: [Senior, Lead, Principal]
+    validations:
+      required: true
+  - type: input
+    id: round
+    attributes:
+      label: Round or topic
+      placeholder: React internals, system design, performance, leadership…
+    validations:
+      required: true
+  - type: textarea
+    id: answer
+    attributes:
+      label: The answer you'd give
+      description: Markdown. Start with a 60-second summary, then go deeper (trade-offs, follow-ups).
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Interview context (optional)
+      description: Kind of company, which round, anything that helps the reviewer.
+  - type: checkboxes
+    id: credit
+    attributes:
+      label: Credit
+      options:
+        - label: Credit me (my GitHub handle) if this is added.

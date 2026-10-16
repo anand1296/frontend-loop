@@ -178,6 +178,15 @@ export const QuestionItem = memo(function QuestionItem({
                 <Suspense fallback={<AnswerSkeleton />}>
                   <Answer sectionId={question.sectionId} questionId={question.id} />
                 </Suspense>
+                {question.contributor ? (
+                  <p className="contributor-line">
+                    Contributed by{' '}
+                    <a href={`https://github.com/${encodeURIComponent(question.contributor)}`} target="_blank" rel="noopener noreferrer">
+                      @{question.contributor}
+                    </a>{' '}
+                    from a real interview. Thank you!
+                  </p>
+                ) : null}
               </ErrorBoundary>
             )}
             <div className="q-footer">

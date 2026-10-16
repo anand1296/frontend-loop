@@ -1,0 +1,370 @@
+/* "Behind the scenes": How it's built + Contribute. */
+
+.walk-list .round {
+  text-decoration: none;
+}
+
+.walk-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.walk-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.walk-meta {
+  white-space: nowrap;
+}
+
+.back-link {
+  align-self: flex-start;
+  font-size: var(--step--1);
+  color: var(--ink-2);
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+
+.back-link:hover {
+  color: var(--accent);
+}
+
+.walk-byline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+
+.walk-byline code,
+.lede code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.walk-files {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.walk-files summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.walk-files ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: 4px;
+}
+
+.walk-files a {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.walk-files a:hover {
+  background: var(--surface-2);
+}
+
+.walk-file-name {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.walk-file-dir {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* The "Source: file · lines" caption under each live excerpt. */
+.walk-prose figure.code + p > em:only-child {
+  display: block;
+  margin-top: -6px;
+  font-style: normal;
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+
+.walk-prose figure.code + p > em:only-child a {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.walk-pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.walk-pager a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.walk-pager a:hover {
+  border-color: var(--accent);
+}
+
+.walk-pager a span {
+  font-size: var(--step--1);
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.walk-pager a.is-next {
+  grid-column: 2;
+  text-align: right;
+}
+
+.walk-cta {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.walk-cta svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.walk-cta p {
+  margin: 0;
+}
+
+/* ---------- Contribute ---------- */
+
+.contrib-paths {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 14px;
+}
+
+.contrib-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.contrib-card h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contrib-card h2 svg {
+  color: var(--accent);
+}
+
+.contrib-card p,
+.contrib-card ol {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.contrib-card ol {
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contrib-card .button-row {
+  margin-top: auto;
+}
+
+.contrib-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.contrib-form .field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 12px;
+}
+
+.contrib-form textarea.body-input {
+  min-height: 18rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.contrib-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.contrib-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.contrib-list .contrib-title {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.contrib-list .contrib-sub {
+  display: block;
+  font-weight: 400;
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+
+.contrib-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+
+.status-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.status-chip[data-status='pending'] {
+  background: var(--due-soft);
+  color: var(--due);
+}
+
+.status-chip[data-status='approved'] {
+  background: var(--done-soft);
+  color: var(--done);
+}
+
+.status-chip[data-status='rejected'] {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+.contributor-line {
+  margin: 12px 0 0;
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+
+.contributor-line a {
+  color: inherit;
+}
+
+.admin-quote {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.note-input {
+  width: 100%;
+  font: inherit;
+}
+
+.console-tabs .tab-count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--due-soft);
+  color: var(--due);
+}
+
+.contrib-page input:not([type='checkbox']):not([type='radio']),
+.contrib-page select,
+.contrib-page textarea,
+.console-page textarea.note-input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-weight: 400;
+}
+
+.contrib-page [aria-invalid='true'] {
+  border-color: var(--danger) !important;
+}
+
+.contrib-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.contrib-card code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.nav-label-behind {
+  margin-top: 20px;
+}

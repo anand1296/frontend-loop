@@ -2,6 +2,8 @@
 
 Frontend Loop is deliberately built with the techniques its answers teach, in the React frontend and (since v2) in the Go backend. Use this guide two ways: as a **code tour** (read the file, then the question it illustrates) and as a list of **exercises** that extend the app and double as interview practice.
 
+> **Start inside the app.** *Behind the scenes → How it's built* has seven walkthroughs (also in [`walkthroughs/`](../walkthroughs/)) that follow one feature at a time through the code: architecture, email reminders, sign-in and sessions, progress sync, the content pipeline and CMS, community contributions, and the walkthrough system itself. Their code excerpts are quoted live from the repository, so they always match what you're reading below.
+
 ## Part 1: Code tour
 
 | Read this | It demonstrates | Related question in the app |
@@ -89,6 +91,9 @@ These follow the roadmap in docs/SPEC.md §18; each one is also a set of intervi
 22. **AI follow-ups.** After a learner reveals an answer, stream a tough follow-up question from an LLM through the Go API (keys server-side, per-user quota in Redis, prompt and response logged for evals). *Practices: streaming, cost control, safety.*
 23. **Semantic search.** Embed every answer (pgvector), hybrid ranking with the existing keyword search, an eval set of 30 queries. *Practices: RAG, evaluation.*
 24. **Per-user send times.** Replace the daily cron with an hourly one (or a queue) and send each reminder at the learner's chosen local time; store an IANA time zone per user. *Practices: scheduling, time zones, queues.*
+
+25. **Write a walkthrough.** Pick a feature without one (search, spaced review, the single-file build, the admin console tabs) and write `walkthroughs/08-….md` using `repo:` links and `excerpt=` fences. Rename a function it quotes and watch `npm run check` fail. *Practices: technical writing, docs-as-code.*
+26. **Submission moderation at scale.** Add duplicate detection for submissions (trigram similarity in Postgres, later embeddings), and a "request changes" status that lets the author edit and resubmit. *Practices: state machines, fuzzy search, moderation UX.*
 
 ### Principal-level reflection
 

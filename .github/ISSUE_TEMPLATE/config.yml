@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How contributing works
+    url: https://github.com/anand1296/frontend-loop/blob/main/CONTRIBUTING.md
+    about: Pull requests, question proposals, and how review works. Members of the hosted app can also submit questions inside the app (Behind the scenes → Contribute).
+  - name: Security problem
+    url: https://github.com/anand1296/frontend-loop/security/advisories/new
+    about: Please report vulnerabilities privately, not in a public issue.
