@@ -165,6 +165,9 @@ export function resolveRepoRef(ctx: RepoContext, ref: string, where: string): { 
     return { url: blobUrl(ctx, path, `#${anchor}`), file: path };
   }
   const line = findSymbolLine(lines, anchor, path);
+  // Vercel rewrites vercel.json before the build runs (its keys are moved into the deployment config),
+  // so symbols there can't be found; CI, with the real file, still verifies them.
+  if (line < 0 && process.env.VERCEL && path === 'vercel.json') return { url: blobUrl(ctx, path), file: path };
   if (line < 0) throw new ContentError(`${where}: symbol "${anchor}" not found in ${path}`);
   return { url: blobUrl(ctx, path, `#L${line}`), file: path };
 }

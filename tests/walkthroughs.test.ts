@@ -130,6 +130,21 @@ describe('compileWalkthroughs', () => {
     }
   });
 
+  it('falls back to a plain link for symbols in vercel.json on Vercel, which rewrites that file', () => {
+    const root = repo();
+    writeFileSync(join(root, 'vercel.json'), '{}\n');
+    const body = '[r](repo:vercel.json#rewrites)';
+    assert.throws(() => compileWalkthroughs([doc(body)], ctx(root)), /symbol "rewrites" not found/);
+    const before = process.env.VERCEL;
+    process.env.VERCEL = '1';
+    try {
+      assert.match(compileWalkthroughs([doc(body)], ctx(root)).html.demo ?? '', /blob\/abc123\/vercel.json"/);
+    } finally {
+      if (before === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = before;
+    }
+  });
+
   it('sorts by order and rejects duplicate ids', () => {
     const root = repo();
     const second = { ...doc('Two', 'two'), source: doc('Two', 'two').source.replace('order: 1', 'order: 0') };
