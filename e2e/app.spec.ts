@@ -130,3 +130,23 @@ test('filters, theme and keyboard basics', async ({ page }) => {
   await page.getByRole('radio', { name: 'Dark' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
+
+test('"How it\'s built" walkthroughs and Contribute (no backend)', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: "How it's built" }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText("How it's built");
+  await page.getByRole('link', { name: /Email reminders, end to end/ }).click();
+  await expect(page).toHaveURL(/#how-its-built\/email-reminders$/);
+  // Live excerpts and commit-pinned links to the repository.
+  await expect(page.locator('.walk-prose figure.code').first()).toBeVisible();
+  await expect(page.locator('.walk-prose a[href*="github.com/anand1296/frontend-loop/blob/"]').first()).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Email reminders, end to end');
+
+  // Without a backend, proposing a question goes through a GitHub issue form.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Contribute' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Contribute');
+  await expect(page.getByRole('link', { name: 'Propose it on GitHub' })).toHaveAttribute('href', /issues\/new\?template=question\.yml/);
+  expect(errors).toEqual([]);
+});

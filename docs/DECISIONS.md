@@ -362,3 +362,47 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 - (−) One send time for everyone (~09:00 IST). Moving to an hourly scheduler (Pro plan or an external cron) would allow per-user times.
 - (−) Gmail SMTP caps at ~500 recipients/day and sends from your personal address; use a domain + Resend/Brevo when the group grows.
 - (−) Existing users must sign in once more to grant the email scope.
+
+---
+
+## ADR-024: "How it's built": walkthroughs quote code by symbol at build time and link to the built commit
+
+**Status:** Accepted (v2.3)
+
+**Context.** The app is a learning project, and the owner wants it to explain itself: for each feature, the architecture, the code (with links to GitHub), the flow of logic and the reasoning behind each decision. Documentation about code usually rots: snippets get pasted and drift, line links point at a moving `main`.
+
+**Decision.**
+- Walkthroughs are Markdown files in `walkthroughs/`, compiled by `build/walkthroughs/compile.ts` and rendered with the same Markdown renderer as answers.
+- Two extensions: `[text](repo:path#Symbol)` links to the declaration's line on GitHub, and ```` ```lang excerpt=path#Symbol ```` (or `lines=a-b`) inserts the declaration's real source (with the comment above it) plus a source caption. Code is never pasted.
+- Links point at the commit being built (`VERCEL_GIT_COMMIT_SHA` → `GITHUB_SHA` → `git rev-parse HEAD` → `main`).
+- Every reference is validated (file exists inside the repository, symbol found, range in bounds) in `npm run check`, so CI fails on a stale walkthrough.
+- Symbols are found with a small line-based heuristic rather than per-language parsers; blocks end at the matching bracket.
+- Shipped as `virtual:walkthroughs` (index, in the main bundle) and `virtual:walkthroughs/content` (lazy chunk), in every build including the single-file one. Placed at the bottom of the sidebar ("Behind the scenes"), behind the `howItsBuilt` flag.
+
+**Alternatives considered.** Fetching files from the GitHub API at runtime (rate limits, network dependency, broken references discovered by readers instead of CI); a docs site (separate deploy, not "inside the app"); per-language AST parsers (heavier and unnecessary for the declarations we quote).
+
+**Consequences.**
+- (+) Walkthroughs can't silently drift: renames break the build with a precise message, and quoted code is always current.
+- (+) Readers see the code that is actually running; links stay valid forever.
+- (−) The heuristic can, in principle, pick the wrong declaration if two share a name in one file; authors can use `lines=a-b` or link a more specific file.
+- (−) Prose can still go stale even when code references are valid; reviewing the walkthrough is part of the PR checklist.
+
+---
+
+## ADR-025: Community contributions: a separate submissions table with transactional approval; GitHub enforces code review
+
+**Status:** Accepted (v2.3)
+
+**Context.** The owner wants people to contribute questions from their own interviews and code improvements, with the rule that nothing goes live, and no pull request merges, without the owner's approval.
+
+**Decision.**
+- **Questions:** a `submissions` table separate from `questions`. Submissions are validated with the same compiler and quality bar as published questions, rate-limited (5/day, 10 pending per person) and switchable off with the `contribute` flag. Admins review in Admin → Submissions; approval sends the final, possibly edited question and runs in one transaction (content advisory lock, submission row `FOR UPDATE`, must be `pending`, insert question, set `contributed_by` if credit was requested, mark approved, bump content version, audit). Owner and submitter are notified by email, best effort after commit. Without a backend, a GitHub issue form replaces the in-app form.
+- **Code:** `CODEOWNERS` (`* @anand1296`), PR and issue templates, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, plus branch protection on `main` configured in GitHub settings (required PR, Code Owner review, dismiss stale approvals, last-push approval, required checks `web`/`go`/`e2e-server`, conversation resolution, no force-push or deletion) and approval before Actions run for outside contributors.
+
+**Alternatives considered.** A `status` column on `questions` (every reader query would need a filter forever; one forgotten `WHERE` leaks unreviewed content); accepting question contributions only as PRs (excludes non-developers and makes review heavier); auto-publishing with after-the-fact moderation (contradicts the requirement).
+
+**Consequences.**
+- (+) Unreviewed content is invisible by construction; approval can't half-happen or happen twice.
+- (+) Review effort is low: contributions already meet the publishing bar and the reviewer edits in place.
+- (−) A suggested new round must be created by the admin before approving into it.
+- (−) Branch protection lives in GitHub settings, not in the repository, so it must be set (and re-checked) manually; the owner, as a repository admin, can still bypass it unless "Do not allow bypassing" is enabled.

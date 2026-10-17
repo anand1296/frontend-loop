@@ -102,8 +102,10 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 | v1.1 | Component tests (Testing Library) and Playwright E2E in CI; Lighthouse CI budgets |
 | v1.2 | Offline support (service worker), installable PWA |
 | **v2.0** (this release) | Go + Postgres backend; GitHub sign-in; owner/admin/learner roles; invite links; synced progress; admin console (content CMS with preview, drafts, revisions, trash, repository sync and export; learners; invites; feature flags; site settings; announcements; activity log); full-stack CI |
-| v2.1 | Tracks (groups of rounds) and the first backend/Go, data and cloud rounds |
-| v2.2 | Redis (shared rate limits, caches), live updates via Server-Sent Events |
+| **v2.2** | Email reminders (opt-in, daily cron, SMTP) |
+| **v2.3** | "How it's built" walkthroughs with live code; community question submissions with owner review; contribution guide and protected `main` |
+| v2.4 | Tracks (groups of rounds) and the first backend/Go, data and cloud rounds |
+| v2.5 | Redis (shared rate limits, caches), live updates via Server-Sent Events |
 | v3.0 | Mock-interview mode, confidence ratings, AI follow-ups and feedback, semantic search; optional AWS deployment with Terraform (SPEC §18) |
 
 ## 9. Open questions

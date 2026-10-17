@@ -14,9 +14,11 @@ import { ContentTab } from './ContentTab.tsx';
 import { InvitesTab } from './InvitesTab.tsx';
 import { PeopleTab } from './PeopleTab.tsx';
 import { SettingsTab } from './SettingsTab.tsx';
+import { SubmissionsTab } from './SubmissionsTab.tsx';
 
 const TABS = [
   { id: 'content', label: 'Content' },
+  { id: 'submissions', label: 'Submissions' },
   { id: 'people', label: 'Learners' },
   { id: 'invites', label: 'Invites' },
   { id: 'settings', label: 'Features & settings' },
@@ -32,7 +34,7 @@ function initialTab(): TabId {
 }
 
 export function ConsolePage() {
-  const { user } = useServer();
+  const { user, pendingSubmissions } = useServer();
   const [tab, setTab] = useState<TabId>(initialTab);
   const baseId = useId();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -98,12 +100,22 @@ export function ConsolePage() {
             onClick={() => select(t.id)}
           >
             {t.label}
+            {t.id === 'submissions' && pendingSubmissions > 0 ? (
+              <>
+                {' '}
+                <span className="tab-count">
+                  {pendingSubmissions}
+                  <span className="sr-only"> waiting</span>
+                </span>
+              </>
+            ) : null}
           </button>
         ))}
       </div>
 
       <div role="tabpanel" id={`${baseId}-panel-${tab}`} aria-labelledby={`${baseId}-tab-${tab}`} className="console-panel">
         {tab === 'content' ? <ContentTab /> : null}
+        {tab === 'submissions' ? <SubmissionsTab /> : null}
         {tab === 'people' ? <PeopleTab me={user} /> : null}
         {tab === 'invites' ? <InvitesTab me={user} /> : null}
         {tab === 'settings' ? <SettingsTab me={user} /> : null}

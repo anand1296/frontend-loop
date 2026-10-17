@@ -33,6 +33,7 @@ The same frontend still runs **without** a backend: on any static host, as one H
 - [Testing and quality](#testing-and-quality)
 - [This repo as a learning project](#this-repo-as-a-learning-project)
 - [Roadmap](#roadmap)
+- [Contributing](#contributing)
 - [Docs index](#docs-index)
 
 ## What it does
@@ -46,11 +47,17 @@ The same frontend still runs **without** a backend: on any static host, as one H
 - **Spaced review** (2, 5, 12, 30, 75 days), **practice mode** (answer out loud first, with a stopwatch), **private notes**, **search** (`/` or Ctrl/⌘ K), filters, deep links (`#oauth-pkce-flow`), light/dark, phone-friendly, keyboard and screen-reader friendly.
 - **Sign in with GitHub** (server mode) and your progress follows you to every device. Anything you did before signing in is kept.
 
+**Behind the scenes** (bottom of the sidebar)
+
+- **How it's built:** the app explains itself. Seven walkthroughs (architecture, email reminders, sign-in and sessions, progress sync, content pipeline and CMS, contributions, and the walkthroughs themselves) follow each feature through the code, with the reasoning behind every decision. Code is quoted live from the repository at build time and every link points to the exact line on GitHub at the commit you're running; a stale reference fails CI.
+- **Contribute:** members submit questions from their own interviews (preview, credit, status, withdraw); nothing goes live until the owner approves it. Code changes go through pull requests that can't merge without the owner's review.
+
 **For the owner and admins** (server mode)
 
 - **Content manager:** create, edit, reorder, publish/hide and delete rounds and questions in the browser; Markdown editor with a live, server-rendered preview; drafts visible only to admins; revision history; trash; sync with and export to the repository's Markdown.
 - **People:** invite links (single-use or group, with expiry), roles, a learner dashboard (progress, rounds finished, reviews due, last active), disable/remove.
 - **Features and settings:** switch built-in features on or off, post an announcement, set the app name, headline, who can register and who can read.
+- **Submissions:** review community questions (edit, pick the round and id, publish or draft, note), approve or reject; authors are credited and emailed.
 - **Activity log** of every change.
 
 ## The question bank
@@ -191,6 +198,8 @@ frontend-loop/
 ├─ content/              question bank (Markdown) + embed.go (bundled into the Go binary)
 ├─ src/                  React app: app/ features/ platform/ content/ state/ components/ lib/ styles/
 ├─ build/content/        TypeScript content compiler (marked + highlight.js)
+├─ build/walkthroughs/   "How it's built" compiler (repo: links, live code excerpts, validation)
+├─ walkthroughs/         the walkthroughs (Markdown)
 ├─ backend/              Go: server/ store/ (+ migrations/) catalog/ markdown/ progress/ auth/
 ├─ api/index.go          Vercel serverless entry
 ├─ cmd/server/           standalone binary (API + static files)
@@ -199,7 +208,8 @@ frontend-loop/
 ├─ scripts/              content check, single-file and esbuild builds
 ├─ docs/                 SPEC, PRD, architecture, ADRs, deployment, admin, content and learning guides
 ├─ Dockerfile · docker-compose.yml · vercel.json · .env.example
-└─ .github/workflows/    CI: web · go (with Postgres) · e2e-server
+├─ CONTRIBUTING.md · CODE_OF_CONDUCT.md · SECURITY.md
+└─ .github/              CI (web · go with Postgres · e2e-server), CODEOWNERS, PR and issue templates
 ```
 
 ## Testing and quality
@@ -207,11 +217,11 @@ frontend-loop/
 | Suite | Count | Covers |
 | --- | --- | --- |
 | Go unit | 15 | Markdown rendering and safety, every code language, content parsing/validation/export round-trip, progress merge properties |
-| Go integration (real Postgres) | 13 | Every API rule over HTTP: invites, roles, disabling, expiry, open/members-only, settings, full CMS lifecycle, revisions, trash, ETags, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth (fake provider), concurrent invite race, serverless entry |
+| Go integration (real Postgres) | 16 | Every API rule over HTTP: invites, roles, disabling, expiry, open/members-only, settings, full CMS lifecycle, revisions, trash, ETags, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth (fake provider), concurrent invite race, serverless entry, email reminders, community submissions |
 | Renderer parity | 109 answers | Go and TypeScript renderers produce the same documents |
-| TypeScript unit | 37 | Compiler, progress model, search, selectors, sync protocols (Artifact and HTTP), language-list parity |
-| E2E static | 11 | Study flows, hosted Artifact build in a sandboxed CSP frame, mobile |
-| E2E full stack | 3 | Owner edits content and settings and invites; learner joins, studies, syncs to a second device; owner sees progress; strangers refused |
+| TypeScript unit | 45 | Walkthrough compiler, content compiler, progress model, search, selectors, sync protocols (Artifact and HTTP), language-list parity |
+| E2E static | 12 | Study flows, How it's built, Contribute, hosted Artifact build in a sandboxed CSP frame, mobile |
+| E2E full stack | 4 | Owner edits content and settings and invites; learner joins, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves, it's credited |
 
 CI runs all of it on every push and PR (Go tests with `-race`), plus `gofmt` and `go vet`.
 
@@ -219,7 +229,7 @@ CI runs all of it on every push and PR (Go tests with `-race`), plus `gofmt` and
 
 The app uses the techniques its answers teach, now on both sides: `useSyncExternalStore` stores, React 19 `use()` + Suspense, accessible combobox, tabs and dialogs, local-first sync with a CRDT-style merge, build-time and save-time XSS-safe rendering; and in Go: standard-library routing and middleware, OAuth and cookie sessions, CSRF defenses, transactions with row and advisory locks, optimistic concurrency, embedded migrations, integration tests against a real database, and one handler deployed serverless and as a container.
 
-[docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) has a frontend and a backend code tour and 25 graded exercises, including the full-stack track (Redis, SSE, sqlc, OpenTelemetry, Terraform on AWS, AI follow-ups, semantic search).
+Start with **How it's built** inside the app (or [`walkthroughs/`](walkthroughs/)): each walkthrough explains one feature end to end with live code and the reasoning behind it. [docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) has a frontend and a backend code tour and 25 graded exercises, including the full-stack track (Redis, SSE, sqlc, OpenTelemetry, Terraform on AWS, AI follow-ups, semantic search).
 
 ## Roadmap
 
@@ -230,6 +240,15 @@ From frontend prep to full-stack prep (details in [docs/SPEC.md §18](docs/SPEC.
 3. **Mock interviews**, confidence ratings, **AI follow-ups and feedback**, semantic search (pgvector).
 4. **AWS with Terraform**: ECS Fargate or Lambda, RDS, ElastiCache, S3 + CloudFront, OIDC CI/CD; OpenTelemetry and SLOs.
 
+## Contributing
+
+Two ways, both reviewed by the owner before anything goes live:
+
+- **Share a question from your interviews:** in the app, *Behind the scenes → Contribute* (members), or a [question proposal issue](https://github.com/anand1296/frontend-loop/issues/new?template=question.yml).
+- **Improve the code:** fork, branch, `npm run check`, open a pull request. `main` is protected: every PR needs the owner's approval (CODEOWNERS) and green CI.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md), the [code of conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) for reporting vulnerabilities privately.
+
 ## Docs index
 
 | Doc | Purpose |
@@ -237,7 +256,9 @@ From frontend prep to full-stack prep (details in [docs/SPEC.md §18](docs/SPEC.
 | [docs/SPEC.md](docs/SPEC.md) | **The technical specification**: requirements, architecture, data model, API, flows, security, operations, decisions, roadmap |
 | [docs/PRD.md](docs/PRD.md) | Problem, personas, user stories, metrics, release plan |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Frontend internals: build pipeline, modules, state, sync, routing, rendering, a11y |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | 21 architecture decision records |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | 25 architecture decision records |
+| [walkthroughs/](walkthroughs/) | "How it's built": feature walkthroughs with live code (also inside the app) |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute questions and code; how review works |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel + Neon + GitHub OAuth, local full stack, Docker, static |
 | [docs/ADMIN.md](docs/ADMIN.md) | Roles, invites, content management, features, privacy |
 | [docs/CONTENT_GUIDE.md](docs/CONTENT_GUIDE.md) | Writing questions (console or Markdown) |

@@ -1,6 +1,6 @@
 # Frontend Loop: Technical Specification
 
-**Version:** 2.0 (Go backend, admin CMS, accounts) · **Status:** implemented · **Owner:** Anand (@anand1296) · **Last updated:** 2026-10-16
+**Version:** 2.3 (Go backend, admin CMS, accounts, reminders, How it's built, community contributions) · **Status:** implemented · **Owner:** Anand (@anand1296) · **Last updated:** 2026-10-17
 
 This is the single, self-contained specification of the system: what it does (product and functional requirements), how it is built (architecture, data model, API, security, operations) and why (design decisions), plus the plan for growing it from a frontend interview-prep app into a full-stack one (backend, Go, AWS, Terraform, system design, Redis, AI). The other documents go deeper on one area each and are linked where relevant.
 
@@ -95,6 +95,8 @@ Comments and social features, payments, native mobile apps, real-time collaborat
 | Create admin invites | | | | ✓ |
 | Disable/remove learners | | | ✓ | ✓ |
 | Disable/remove admins, change anyone's role | | | | ✓ |
+| Submit questions for review (Contribute page) | | ✓ | ✓ | ✓ |
+| Review community submissions (approve, edit and approve, reject) | | | ✓ | ✓ |
 | Feature flags, announcements | | | ✓ | ✓ |
 | Site settings (name, headline, registration, content access) | | | | ✓ |
 | Delete own account | | ✓ | ✓ | (not from the app) |
@@ -174,6 +176,29 @@ IDs are stable; tests and ADRs refer to them.
 | FR-56 | A scheduler sends due reminders once a day (Vercel Cron, ~09:00 IST). Nobody gets two emails in one period, even if runs overlap; a failed send is retried on the next run. |
 | FR-57 | Admins can switch the whole feature off (feature flag `emailReminders`); the job then sends nothing and the setting is hidden. |
 
+### How it's built (all modes, v2.3)
+
+| ID | Requirement |
+| --- | --- |
+| FR-60 | A **Behind the scenes → How it's built** section at the bottom of the sidebar lists walkthroughs of how the app's features were built (title, summary, tags, reading time, number of files). *(flag `howItsBuilt`)* |
+| FR-61 | Each walkthrough (`#how-its-built/<id>`) explains one feature: what it does, a flow diagram, the code in the order a request flows, the decisions and their trade-offs, how it's tested, and interview angles. It lists the repository files involved, with links. |
+| FR-62 | Code in walkthroughs is **quoted from the repository at build time** by symbol name (`excerpt=path#Symbol`), never pasted, and every code link (`repo:path#Symbol`) points to the exact line on GitHub **at the commit being built**. |
+| FR-63 | A reference to a missing file, symbol or line range **fails** `npm run check` and CI with the walkthrough, file and symbol named. |
+| FR-64 | Walkthrough bodies load lazily (one chunk) and work in every build, including the offline single-file build. |
+
+### Contribute (v2.3)
+
+| ID | Requirement |
+| --- | --- |
+| FR-70 | A **Behind the scenes → Contribute** page explains the two ways to contribute: share an interview question, or improve the code with a pull request (steps, guide, issues). *(flag `contribute`)* |
+| FR-71 | Signed-in members submit a question: round (or a suggested new round), question, level, minutes, tags, Markdown answer, optional interview context (reviewer-only), and whether to be credited. A preview validates it against the same bar as published questions. |
+| FR-72 | Submissions are **never visible to other learners** until approved. Limits: 5 per day and 10 pending per person. The owner is emailed about each new submission. |
+| FR-73 | Members see their own submissions with status (waiting, added, not added, withdrawn), the reviewer's note, a link to the question once added, and can withdraw pending ones. |
+| FR-74 | Admins review in **Admin → Submissions** (with a pending-count badge on Admin and on the tab): edit any field, choose the round and permanent id, publish now or add as a draft, add a note, then **approve** (creates the question and closes the submission atomically) or **reject**. The submitter is emailed either way. A second approval of the same submission is refused. |
+| FR-75 | Approved questions credit the contributor ("Contributed by @login") when they asked for it. |
+| FR-76 | Without a backend, "share a question" opens a GitHub issue form instead. |
+| FR-77 | Code contributions: the repository has a contributing guide, pull request and issue templates, a code of conduct and a security policy; `CODEOWNERS` plus branch protection on `main` make the owner's approval and green CI mandatory for every merge. |
+
 ---
 
 ## 4. Non-functional requirements
@@ -232,12 +257,14 @@ frontend-loop/
 ├─ content/               Markdown question bank (seed + export format) and embed.go (go:embed)
 ├─ src/                   React app (TypeScript)
 │  ├─ app/                shell, sidebar
-│  ├─ features/           overview · section · review · search · settings · account · console · admin (Artifact) · announcement
+│  ├─ features/           overview · section · review · search · settings · account · console · admin (Artifact) · announcement · reminders · howItsBuilt · contribute
 │  ├─ platform/           api.ts (fetch client) · backend.ts (server mode) · launch.ts (?invite, ?auth_error) · runtime.ts (claude.ai)
 │  ├─ content/            content store (bundled or server) + types
 │  ├─ state/              stores, progress model, selectors, router, persistence (local, cloud, server)
 │  ├─ components/ lib/ styles/ types/
 ├─ build/content/         TypeScript content compiler (marked + highlight.js)
+├─ build/walkthroughs/    "How it's built" compiler: repo: links + live code excerpts, validated
+├─ walkthroughs/          the walkthroughs (Markdown)
 ├─ backend/               Go packages
 │  ├─ markdown/           goldmark + chroma renderer (twin of build/content/markdown.ts)
 │  ├─ catalog/            content model, repository file parser/exporter, validation, compiler
@@ -251,7 +278,8 @@ frontend-loop/
 ├─ scripts/               content check (+ parity fixture), single-file and esbuild web builds
 ├─ docs/                  this spec, PRD, architecture, ADRs, guides
 ├─ Dockerfile docker-compose.yml vercel.json .env.example
-└─ .github/workflows/     CI (web, go, e2e-server), optional Pages deploy
+├─ .github/               workflows (CI: web, go, e2e-server; optional Pages deploy), CODEOWNERS, PR + issue templates
+└─ CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md
 ```
 
 ### 5.3 Dependency rules
@@ -384,6 +412,9 @@ erDiagram
   users ||--o{ invites : creates
   users ||--o{ audit_log : performs
   users ||--o| reminder_prefs : sets
+  users ||--o{ submissions : submits
+  users ||--o{ questions : "credited (contributed_by)"
+  submissions |o--o| questions : "becomes (question_id)"
   sections ||--o{ questions : contains
   questions ||--o{ question_revisions : "history (no FK)"
 ```
@@ -402,6 +433,8 @@ erDiagram
 | `settings` | `key` (PK), `value` (JSONB) | Keys: `site`, `features`, `announcement`, `content_version` (counter), `seeded` |
 | `audit_log` | `actor_id`, `action`, `target`, `detail` (JSONB), `at` | Append-only |
 | `reminder_prefs` | `user_id` (PK), `enabled` (default false), `frequency` (`daily`/`every3days`/`weekly`), `unsubscribe_token` (unique), `last_sent_at`, `last_error` | Claimed with `FOR UPDATE SKIP LOCKED` before sending; minimum gaps 20 h / 68 h / 164 h absorb the cron's within-the-hour jitter |
+| `submissions` | `id`, `user_id` (FK, cascade), `section_id` or `new_section_title`, `title`, `level`, `tags[]`, `minutes`, `body`, `context`, `credit`, `status` (`pending`/`approved`/`rejected`/`withdrawn`), `reviewer_id`, `review_note`, `question_id`, timestamps | Separate from `questions`, so no reader query can see unreviewed content; approval inserts the question and closes the submission in one transaction with the row locked |
+| `questions.contributed_by` | FK to `users`, `ON DELETE SET NULL` | Set on approval only when the submitter asked for credit |
 | `schema_migrations` | `version` | Migrations in `backend/store/migrations/NNN_name.sql`, applied once, in order, in one transaction |
 
 ### 8.3 Progress document (JSON, shared by browser and server)
@@ -449,6 +482,10 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `GET /cron/reminders` | `Authorization: Bearer $CRON_SECRET` | Claims up to 50 due reminders, sends, releases failures; `{claimed, sent, failed}` or `{skipped}` |
 | `GET /reminders/unsubscribe?token=` | token | HTML confirmation page (never changes state) |
 | `POST /reminders/unsubscribe?token=` | token (exempt from the CSRF header rule: no cookies involved) | Turns reminders off; also the RFC 8058 one-click target |
+| `POST /submissions/preview` | learner+ (rate-limited) | `{html, problems}` for a draft submission; nothing saved |
+| `POST /submissions` | learner+ (5/day, 10 pending) | Body: `{sectionId \| newSectionTitle, title, level, tags, minutes, body, context, credit}`. 201 with the submission; 422 problems; 429 limits; 403 `disabled` when the `contribute` flag is off. Emails the owner |
+| `GET /me/submissions` | learner+ | The caller's submissions, newest first |
+| `DELETE /me/submissions/{id}` | learner+ | Withdraw a pending submission (409 `not_pending` otherwise) |
 
 ### 9.2 Admin (admin or owner)
 
@@ -470,6 +507,9 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `GET /admin/sections/{id}/export` · `GET /admin/export` | Markdown file / zip of `content/*.md` |
 | `GET /admin/settings` · `PUT /admin/settings/{site·features·announcement}` | Read all; write one (site is owner-only) |
 | `GET /admin/audit?before=<id>` | 50 entries per page, newest first |
+| `GET /admin/submissions?status=pending\|all\|approved\|rejected\|withdrawn` · `GET /admin/submissions/{id}` | Review queue (default pending) |
+| `POST /admin/submissions/{id}/approve {question, note}` | Creates `question` (same validation as `POST /admin/questions`), credits the author if asked, closes the submission, emails the author; 409 `not_pending` |
+| `POST /admin/submissions/{id}/reject {note}` | Closes the submission with a note (≤1000 chars) and emails the author |
 
 ---
 
@@ -494,6 +534,21 @@ content/*.md ──────▶│ build/content (marked + highlight.js) → 
 - **Languages:** ts, tsx, js, jsx, html, xml, css, bash/sh/shell, json, yaml/yml, graphql, diff, http, text/txt, plus go/golang, sql, python/py, dockerfile/docker, proto/protobuf, toml, ini, hcl/terraform/tf (ready for backend and cloud rounds).
 
 Authoring rules: [CONTENT_GUIDE.md](CONTENT_GUIDE.md).
+
+### 10.1 Walkthroughs ("How it's built")
+
+```text
+walkthroughs/*.md ──▶ build/walkthroughs/compile.ts
+                        • repo:path#Symbol  → https://github.com/…/blob/<commit>/path#L<line>
+                        • ```lang excerpt=path#Symbol  → the declaration's real source + "Source: path · lines a–b"
+                        • every file / symbol / range must exist, else ContentError (fails check + CI)
+                     ──▶ virtual:walkthroughs (index, main bundle) + virtual:walkthroughs/content (lazy HTML)
+```
+
+- The commit is `VERCEL_GIT_COMMIT_SHA`, else `GITHUB_SHA`, else `git rev-parse HEAD`, else `main`, so deployed links point at the code that is running.
+- Symbols are found by a line-based heuristic (declaration keyword + name; Go methods; SQL tables; JSON/YAML keys; Markdown headings); a declaration's block includes the comment above it and ends at its closing bracket. Excerpts are capped at 90 lines.
+- Ordinary fences and inline code are left untouched, so walkthroughs can show the syntax itself.
+- Rendered with the same Markdown renderer as answers (callouts, highlighting, escaped HTML, safe links).
 
 ---
 
@@ -550,6 +605,17 @@ Vercel Cron (daily, 03:30 UTC ≈ 09:00 IST, fires within the hour)
 
 Claim-then-send gives at-most-once per period even when two runs overlap; restoring on failure turns it into at-least-once eventually. The email is pure data → template (`backend/reminders`), so its content is unit-tested without SMTP.
 
+### 11.5 Community question submission
+
+```text
+member: #contribute form ──POST /api/submissions──▶ checkSubmission (same bar as publishing) + limits
+          └─▶ submissions (pending) ──email──▶ owner
+owner: Admin → Submissions → Review (edit, pick round + id) ──POST …/approve──▶ ApproveSubmission (one tx):
+          lock content + submission row → must be pending → insert question → contributed_by → status approved
+          → bump content version → audit ──▶ email the author (best effort, after commit)
+```
+
+
 ---
 
 ## 12. Security and privacy
@@ -574,6 +640,9 @@ Claim-then-send gives at-most-once per period even when two runs overlap; restor
 | Email header injection | CR/LF stripped from every header value; addresses parsed with `net/mail`; covered by tests. |
 | Unsubscribe link prefetching | GET shows a confirmation page; only POST (form or RFC 8058 one-click) changes state. The token can only turn reminders off. |
 | SMTP credentials | Sent only over TLS (465) or after STARTTLS; the client refuses to authenticate in clear text. |
+| Unreviewed or malicious community content | Submissions live in their own table that no reader query touches; they pass the same validator and safe renderer as admin content (raw HTML escaped, safe links only); per-user limits (5/day, 10 pending); only admins can approve, atomically and audited; the feature can be paused with a flag. |
+| Unreviewed code reaching `main` | `CODEOWNERS` (`* @anand1296`) + branch protection: pull request required, Code Owner approval, stale approvals dismissed, last-push approval, required checks, no force-push/deletion; Actions on first-time contributors' PRs need approval. Vulnerabilities go to private advisories (`SECURITY.md`). |
+| Stale or misleading documentation | Walkthrough code is quoted from source at build time and links are pinned to the built commit; broken references fail CI. |
 
 ### 12.2 Privacy
 
@@ -601,6 +670,7 @@ Admins see per-learner summaries computed on the server (done counts per round, 
 - Structured JSON logs (`log/slog`): one line per request (method, path, status, duration), warnings for failed GitHub exchanges, errors with context for unexpected store failures and panics (with stack). Vercel captures stdout.
 - `GET /api/health` for uptime checks.
 - `audit_log` is the business-level trail (who changed what).
+- Submissions and approvals are in `audit_log` (`submission.created`, `submission.approved`).
 - Next steps (roadmap): request ids, OpenTelemetry traces, web-vitals from the client, error reporting.
 
 ---
@@ -610,11 +680,11 @@ Admins see per-learner summaries computed on the server (done counts per round, 
 | Layer | Tool | What | Count |
 | --- | --- | --- | --- |
 | Go unit | `go test` | Markdown rendering (callouts, safety, code figures, every language), catalog parse/validate/export round-trip, progress parse/merge/summary | 15 |
-| Go integration | `go test` + real Postgres (`TEST_DATABASE_URL`) | Every API flow through HTTP: bootstrap, invite policy, roles, disabling, expiry/revocation, open registration, members-only, settings, full CMS lifecycle, revisions and trash, ETag, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth against a fake GitHub, concurrent invite race, serverless entry | 13 |
+| Go integration | `go test` + real Postgres (`TEST_DATABASE_URL`) | Every API flow through HTTP: bootstrap, invite policy, roles, disabling, expiry/revocation, open registration, members-only, settings, full CMS lifecycle, revisions and trash, ETag, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth against a fake GitHub, concurrent invite race, serverless entry, email reminders (cron, claim, retry, unsubscribe), community submissions (limits, invisibility, approve/credit/notify, double approval, reject, withdraw, pause) | 16 |
 | Renderer parity | `go test` + TS fixture | All 109 answers identical (modulo highlighting) between Go and TypeScript renderers | 1 |
-| TS unit | `node --test` | Compiler, progress model, search, selectors, Artifact sync, summaries, server sync over HTTP (no redundant writes), language-list parity | 37 |
-| E2E static | Playwright | Studying flows, hosted Artifact build in a sandboxed CSP frame, mobile | 11 |
-| E2E full stack | Playwright + Go server + Postgres | Owner creates a round and question with live preview, publishes, announces, switches a feature, invites; learner accepts, studies, syncs to a second device; owner sees progress; strangers refused | 3 |
+| TS unit | `node --test` | Walkthrough compiler (symbol lookup, block extraction, links, excerpts, broken references, fences left alone), compiler, progress model, search, selectors, Artifact sync, summaries, server sync over HTTP (no redundant writes), language-list parity | 37 |
+| E2E static | Playwright | Studying flows, How it's built (index, walkthrough, deep link), Contribute without a backend, hosted Artifact build in a sandboxed CSP frame, mobile | 11 |
+| E2E full stack | Playwright + Go server + Postgres | Owner creates a round and question with live preview, publishes, announces, switches a feature, invites; learner accepts, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves it, the learner sees it credited | 4 |
 
 CI runs everything on every push and pull request, Go tests with `-race`.
 
@@ -655,6 +725,8 @@ Full records with context and consequences: [DECISIONS.md](DECISIONS.md).
 | 022 | Private by default: members-only and invite-only, with a full-page sign-in screen |
 | 023 | Email reminders: opt-in, verified GitHub email, SMTP (any provider), daily cron with claim-then-send |
 | 021 | CMS safety: optimistic concurrency, revisions, trash, audit log |
+| 024 | "How it's built": walkthroughs quote code by symbol at build time and link to the built commit; broken references fail CI |
+| 025 | Community contributions: a separate submissions table and transactional approval; GitHub branch protection + CODEOWNERS for code |
 
 ---
 

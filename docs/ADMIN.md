@@ -66,12 +66,40 @@ Admin → **Learners**: everyone with role, progress (% and done/total), rounds 
 
 Privacy: admins see this summary only. Notes, review dates and per-question history are never sent to admins. Learners are told this in Settings, and can delete their account there.
 
+### Community submissions
+
+Members can propose questions from their own interviews (sidebar → **Behind the scenes → Contribute**). You get an email for each one, and a count badge appears on **Admin** and on the **Submissions** tab.
+
+Admin → **Submissions** → **Review**:
+
+1. Read the interview context (only reviewers see it) and the live preview.
+2. Edit anything: wording, round, level, minutes, tags, the answer. Choose the **permanent id**. If they suggested a new round, create it in **Content** first, or pick an existing one.
+3. Choose **Publish now** or **Add as draft**, optionally write a note to the author, then **Approve and add**. The question is created and the submission closed in one step; the author is credited (if they asked) and emailed.
+4. Or **Reject** with a short note; the author is emailed and sees the note on their Contribute page.
+
+Nothing a member submits is visible to anyone else until you approve it. Each person can send 5 a day and have 10 waiting. To pause submissions, switch off **Contribute** in Features & settings.
+
+### Pull requests on GitHub (repository rules)
+
+The repository ships `CODEOWNERS` (you own every file), `CONTRIBUTING.md`, PR and issue templates, a code of conduct and `SECURITY.md`. GitHub only enforces "nobody merges without my approval" once these settings are on (one time, in the repository on github.com):
+
+1. **Settings → Branches → Add branch protection rule** (or *Rules → Rulesets → New branch ruleset* targeting `main`), branch name pattern `main`:
+   - **Require a pull request before merging** → *Require approvals: 1* → **Dismiss stale pull request approvals when new commits are pushed** → **Require review from Code Owners** → **Require approval of the most recent reviewable push**.
+   - **Require status checks to pass before merging** → *Require branches to be up to date* → add `web`, `go`, `e2e-server` (they appear after CI has run once on a PR).
+   - **Require conversation resolution before merging**.
+   - Leave **Allow force pushes** and **Allow deletions** off.
+   - Leave *Do not allow bypassing the above settings* **off** if you want to keep merging your own PRs without a second reviewer (GitHub doesn't let you approve your own PR); turn it on for the strictest setup.
+2. **Settings → Actions → General → Fork pull request workflows from outside collaborators** → **Require approval for all outside collaborators**, and **Workflow permissions** → *Read repository contents permission*.
+3. **Settings → General → Pull Requests** → tick **Automatically delete head branches**.
+4. **Settings → Security → Private vulnerability reporting** → **Enable** (SECURITY.md points there).
+5. Optional: add a `LICENSE` file so others know how they may use the code (without one, the code is "all rights reserved" by default).
+
 ### Features and settings
 
 Admin → **Features & settings**:
 
 - **Announcement:** message, tone (info, good news, heads-up), optional link (`https://…` or `#round-id`). Shown at the top of the app until each person dismisses it. *Clear current* removes it.
-- **Features:** switch built-in features on or off for everyone, instantly: Spaced review, Search, Personal notes, Round filters, Export and import, Level breakdown, Email reminders.
+- **Features:** switch built-in features on or off for everyone, instantly: Spaced review, Search, Personal notes, Round filters, Export and import, Level breakdown, Email reminders, How it's built, Contribute.
 - **Email reminders** are opt-in per person (Settings → Email reminders, default off; daily, every 3 days or weekly). Turning the feature off here stops all reminder emails. Sending needs the SMTP settings and `CRON_SECRET` (docs/DEPLOYMENT.md §1.7). You never see people's email addresses.
 - **Site & access** (owner): app name, overview headline, registration, content access.
 
@@ -90,7 +118,9 @@ Switching features is a setting. **Building a new feature is a code change**, an
 | Roles, sign-in, invites, sessions | `backend/store/users.go`, `backend/server/session.go`, `backend/auth/` |
 | Content management | `backend/store/content.go`, `backend/server/admin.go`, `backend/catalog/`, `backend/markdown/` |
 | Settings and flags | `backend/server/settings.go` |
-| Console UI | `src/features/console/` (`ContentTab`, `QuestionEditor`, `PeopleTab`, `InvitesTab`, `SettingsTab`, `ActivityTab`) |
+| Console UI | `src/features/console/` (`ContentTab`, `QuestionEditor`, `SubmissionsTab`, `PeopleTab`, `InvitesTab`, `SettingsTab`, `ActivityTab`) |
+| Community submissions | `backend/store/submissions.go`, `backend/server/submissions.go`, `src/features/contribute/` |
+| How it's built | `walkthroughs/*.md`, `build/walkthroughs/compile.ts`, `src/features/howItsBuilt/` |
 | Sign-in UI | `src/features/account/Account.tsx`, `src/platform/backend.ts`, `src/platform/launch.ts` |
 | Tests | `backend/server/server_test.go` (every rule above), `e2e/server.spec.ts` |
 

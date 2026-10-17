@@ -129,6 +129,12 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/reminders/unsubscribe", s.unsubscribePage)
 	mux.HandleFunc("POST /api/reminders/unsubscribe", s.unsubscribe)
 
+	// Community question submissions
+	mux.HandleFunc("POST /api/submissions", s.signedIn(s.createSubmission))
+	mux.HandleFunc("POST /api/submissions/preview", s.signedIn(s.previewSubmission))
+	mux.HandleFunc("GET /api/me/submissions", s.signedIn(s.mySubmissions))
+	mux.HandleFunc("DELETE /api/me/submissions/{id}", s.signedIn(s.withdrawSubmission))
+
 	// Admin console
 	admin := func(pattern string, h handlerWithUser) { mux.HandleFunc(pattern, s.adminOnly(h)) }
 	admin("GET /api/admin/users", s.listUsers)
@@ -159,6 +165,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 	admin("POST /api/admin/preview", s.preview)
 	admin("GET /api/admin/sync", s.planSync)
 	admin("POST /api/admin/sync", s.applySync)
+
+	admin("GET /api/admin/submissions", s.listSubmissions)
+	admin("GET /api/admin/submissions/{id}", s.getSubmission)
+	admin("POST /api/admin/submissions/{id}/approve", s.approveSubmission)
+	admin("POST /api/admin/submissions/{id}/reject", s.rejectSubmission)
 
 	admin("GET /api/admin/settings", s.getSettings)
 	admin("PUT /api/admin/settings/{key}", s.putSetting)

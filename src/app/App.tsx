@@ -8,6 +8,8 @@ import { AdminPage } from '../features/admin/AdminPage.tsx';
 import { AuthErrorDialog, InviteDialog, SignInDialog } from '../features/account/Account.tsx';
 import { SetupScreen, SignInScreen } from '../features/account/Gate.tsx';
 import { ConsolePage } from '../features/console/ConsolePage.tsx';
+import { ContributePage } from '../features/contribute/ContributePage.tsx';
+import { HowItsBuiltPage } from '../features/howItsBuilt/HowItsBuilt.tsx';
 import { useServer } from '../platform/backend.ts';
 import { AnnouncementBanner } from '../features/announcement/AnnouncementBanner.tsx';
 import { SearchDialog } from '../features/search/SearchDialog.tsx';
@@ -27,6 +29,8 @@ function View({ route }: { route: Route }) {
   if (mode === 'server' && route.name === 'admin') return <ConsolePage />;
   if (route.name === 'review' && features.review) return <ReviewPage />;
   if (route.name === 'admin') return <AdminPage />;
+  if (route.name === 'howItsBuilt' && features.howItsBuilt) return <HowItsBuiltPage walkthroughId={route.walkthroughId} />;
+  if (route.name === 'contribute' && features.contribute) return <ContributePage />;
   if (route.name === 'section') {
     const section = sectionsById.get(route.sectionId);
     if (section) {

@@ -160,6 +160,42 @@ export interface AuditEntry {
   at: string;
 }
 
+export type SubmissionStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn';
+
+/** A question proposed by a community member (backend/store/submissions.go). */
+export interface Submission {
+  id: number;
+  submitter: string;
+  submitterName: string;
+  sectionId: string;
+  newSectionTitle: string;
+  title: string;
+  level: Level;
+  tags: string[];
+  minutes: number;
+  body: string;
+  context: string;
+  credit: boolean;
+  status: SubmissionStatus;
+  reviewNote: string;
+  reviewer: string | null;
+  questionId: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface SubmissionInput {
+  sectionId: string;
+  newSectionTitle: string;
+  title: string;
+  level: Level;
+  tags: string[];
+  minutes: number;
+  body: string;
+  context: string;
+  credit: boolean;
+}
+
 const json = (method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown) => ({ method, body });
 
 export const consoleApi = {
@@ -195,6 +231,11 @@ export const consoleApi = {
   applySync: (overwrite: boolean) => api<SyncPlan>('/admin/sync', json('POST', { overwrite })),
   exportSection: (id: string) => downloadFrom(`/admin/sections/${encodeURIComponent(id)}/export`, `${id}.md`),
   exportAll: () => downloadFrom('/admin/export', 'frontend-loop-content.zip'),
+
+  submissions: (status: SubmissionStatus | 'all' = 'pending') => api<Submission[]>(`/admin/submissions?status=${status}`),
+  approveSubmission: (id: number, question: QuestionInput, note: string) =>
+    api<Submission>(`/admin/submissions/${id}/approve`, json('POST', { question, note })),
+  rejectSubmission: (id: number, note: string) => api<Submission>(`/admin/submissions/${id}/reject`, json('POST', { note })),
 
   settings: () => api<SettingsResponse>('/admin/settings'),
   putSetting: (key: 'site' | 'features' | 'announcement', value: unknown) => api(`/admin/settings/${key}`, json('PUT', value)),

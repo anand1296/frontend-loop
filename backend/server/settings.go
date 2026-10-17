@@ -60,6 +60,8 @@ var Features = []Feature{
 	{"filters", "Round filters", "Status and level filters on each round page.", true},
 	{"progressTransfer", "Export and import", "Progress export/import in Settings.", true},
 	{"levelOverview", "Level breakdown", "The Senior / Lead / Principal progress cards on the overview.", true},
+	{"howItsBuilt", "How it's built", "Walkthroughs of how each feature of this app was built: architecture, code links and decisions (bottom of the sidebar).", true},
+	{"contribute", "Contribute", "The Contribute page: propose questions from your interviews (reviewed by admins) and how to send code changes.", true},
 	{"emailReminders", "Email reminders", "Lets people opt in to progress reminders by email (each person chooses, default off). Needs SMTP settings on the server.", true},
 }
 

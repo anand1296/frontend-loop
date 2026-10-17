@@ -34,6 +34,8 @@ type QuestionMeta struct {
 	Published  bool      `json:"published"`
 	Revision   int       `json:"revision"`
 	UpdatedAt  time.Time `json:"updatedAt"`
+	// Contributor is the login credited for a community-submitted question ("" if none).
+	Contributor string `json:"contributor,omitempty"`
 }
 
 // SectionMeta is a round with its questions' metadata.
@@ -114,15 +116,16 @@ func (s *Store) Index(ctx context.Context, includeDrafts bool) (Index, error) {
 	for i, sec := range sections {
 		positions[sec.ID] = i
 	}
-	rows, err = tx.QueryContext(ctx, `SELECT id, section_id, title, level, tags, minutes, summary, search_text, published, revision, updated_at
-		FROM questions ORDER BY position, id`)
+	rows, err = tx.QueryContext(ctx, `SELECT q.id, q.section_id, q.title, q.level, q.tags, q.minutes, q.summary, q.search_text, q.published, q.revision, q.updated_at,
+		COALESCE(c.login, '')
+		FROM questions q LEFT JOIN users c ON c.id = q.contributed_by ORDER BY q.position, q.id`)
 	if err != nil {
 		return idx, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var q QuestionMeta
-		if err := rows.Scan(&q.ID, &q.SectionID, &q.Title, &q.Level, pq.Array(&q.Tags), &q.Minutes, &q.Summary, &q.SearchText, &q.Published, &q.Revision, &q.UpdatedAt); err != nil {
+		if err := rows.Scan(&q.ID, &q.SectionID, &q.Title, &q.Level, pq.Array(&q.Tags), &q.Minutes, &q.Summary, &q.SearchText, &q.Published, &q.Revision, &q.UpdatedAt, &q.Contributor); err != nil {
 			return idx, err
 		}
 		if !includeDrafts && !q.Published {

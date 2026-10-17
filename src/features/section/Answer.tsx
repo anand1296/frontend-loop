@@ -5,7 +5,7 @@ import { loadAnswers } from '../../content/index.ts';
  * Copy buttons are emitted by the build-time renderer, so we handle them with
  * one delegated listener instead of hydrating a component per code block.
  */
-async function handleCopyClick(event: MouseEvent<HTMLDivElement>): Promise<void> {
+export async function handleCopyClick(event: MouseEvent<HTMLDivElement>): Promise<void> {
   if (!(event.target instanceof Element)) return;
   const button = event.target.closest('[data-copy-code]');
   const code = button?.closest('figure')?.querySelector('code');
