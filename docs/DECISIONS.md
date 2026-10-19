@@ -424,3 +424,19 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 - (+) Authors write it in the same Markdown file as the answer.
 - (−) The list still shows only the title; the detail appears when a question is opened.
 - (−) Existing deployments get the new prompts via Admin → Content → *Sync from repository* → *Overwrite changed…*.
+
+---
+
+## ADR-027: Open a question to the full question; the answer sits behind a Reveal answer button
+
+**Status:** Accepted (v2.5), refines ADR-026
+
+**Context.** With the full question in the same view as the answer, readers saw the answer before they had tried. Practice mode (a setting) already hid it, but most people never turn settings on.
+
+**Decision.** Expanding a question shows its full question and a **Reveal answer** button; the answer appears on click, with a short fade, and focus moves to it (the button disappears, so focus would otherwise be lost). Revealed stays revealed while the page is open. Exceptions: a question already marked done when the page loads opens straight to its answer; in **Review** the gate applies even though everything there is done, because recall is the point. Practice mode keeps its meaning as an add-on: the same step with a stopwatch and an "answer it out loud first" reminder.
+
+**Alternatives considered.** A tab or "Answer" accordion inside the question (more chrome and a second thing to open); remembering reveals across visits (stored state for little value: next time you want to test yourself again); revealing when a question is ticked done (ticking before reading shouldn't open the answer).
+
+**Consequences.**
+- (+) Self-testing is the default, with one extra click to see the answer.
+- (−) One more click for readers who just want to read; "Expand all" now shows only the full questions.

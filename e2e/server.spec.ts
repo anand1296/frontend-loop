@@ -118,6 +118,7 @@ test('an invited learner joins, studies and syncs across devices', async ({ brow
   await side.getByRole('button', { name: /Go Backend Fundamentals/ }).click();
   const question = laptop.page.locator('.q').first();
   await question.locator('.q-trigger').click();
+  await question.getByRole('button', { name: 'Reveal answer' }).click();
   await expect(question.locator('.callout-tldr')).toBeVisible();
   await expect(question.getByText('Add your own notes')).toHaveCount(0); // feature switched off
   // The write is debounced; wait for the PUT itself rather than the status text (already "Synced" from the initial pull).
@@ -182,6 +183,7 @@ test('a learner contributes a question; it goes live only after the owner approv
 
   await learner.page.goto('/#how-would-you-debounce-a-search-box');
   await learner.page.reload();
+  await learner.page.getByRole('button', { name: 'Reveal answer' }).click();
   await expect(learner.page.locator('.contributor-line')).toContainText('@priya');
   expect([...learner.errors, ...owner.errors]).toEqual([]);
 });

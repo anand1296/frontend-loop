@@ -24,6 +24,8 @@ test('ticking questions persists across reloads and drives "continue"', async ({
 
   const items = page.locator('.q');
   await items.nth(0).locator('.q-trigger').click();
+  await expect(items.nth(0).locator('.callout-tldr')).toHaveCount(0); // held back until asked for
+  await items.nth(0).getByRole('button', { name: 'Reveal answer' }).click();
   await expect(items.nth(0).locator('.callout-tldr')).toBeVisible();
   await items.nth(0).getByRole('checkbox').check();
   await expect(page.locator('.section-progress')).toContainText('1 of 9 done');
@@ -68,7 +70,26 @@ test('search with the keyboard and deep links open the right question', async ({
   await expect(page.locator('#q-oauth-pkce-flow .q-trigger')).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('practice mode hides the answer until revealed', async ({ page }) => {
+test('the answer waits behind a Reveal answer button, and the full question stays visible', async ({ page }) => {
+  await page.goto('/');
+  await openRound(page, 'Accessibility');
+  const first = page.locator('.q').first();
+  await first.locator('.q-trigger').click();
+  await expect(first.locator('.callout-prompt')).toBeVisible();
+  await expect(first.locator('.callout-tldr')).toHaveCount(0);
+  await expect(first.locator('.practice')).toHaveCount(0); // no stopwatch outside practice mode
+  await first.getByRole('button', { name: 'Reveal answer' }).click();
+  await expect(first.locator('.callout-tldr')).toBeVisible();
+  await expect(first.locator('.callout-prompt')).toBeVisible();
+  await expect(first.getByRole('button', { name: 'Reveal answer' })).toHaveCount(0);
+  await expect(first.getByRole('group', { name: 'Answer' })).toBeFocused(); // focus lands on the answer
+  // Closing and reopening keeps it revealed.
+  await first.locator('.q-trigger').click();
+  await first.locator('.q-trigger').click();
+  await expect(first.locator('.callout-tldr')).toBeVisible();
+});
+
+test('practice mode adds the stopwatch to the reveal step', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).first().click();
   await page.getByRole('switch').check();
@@ -77,12 +98,21 @@ test('practice mode hides the answer until revealed', async ({ page }) => {
   const first = page.locator('.q').first();
   await first.locator('.q-trigger').click();
   await expect(first.locator('.practice')).toBeVisible();
-  // The full question stays visible; only the answer is held back.
   await expect(first.locator('.callout-prompt')).toBeVisible();
   await expect(first.locator('.callout-tldr')).toHaveCount(0);
-  await first.getByRole('button', { name: 'Reveal the answer' }).click();
+  await first.getByRole('button', { name: 'Reveal answer' }).click();
   await expect(first.locator('.callout-tldr')).toBeVisible();
-  await expect(first.locator('.callout-prompt')).toBeVisible();
+});
+
+test('a finished question opens straight to its answer', async ({ page }) => {
+  await page.goto('/');
+  await openRound(page, 'Accessibility');
+  const first = page.locator('.q').first();
+  await first.locator('.done-box').click();
+  await page.reload();
+  await openRound(page, 'Accessibility');
+  await first.locator('.q-trigger').click();
+  await expect(first.locator('.callout-tldr')).toBeVisible();
 });
 
 test('import, spaced review and reset', async ({ page }) => {

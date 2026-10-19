@@ -29,9 +29,26 @@ function useNow(intervalMs: number): number {
   return now;
 }
 
-function PracticeGate({ onReveal }: { onReveal: () => void }) {
+/** Stands in for the answer until the reader asks for it. Practice mode adds the stopwatch and the out-loud nudge. */
+function RevealGate({ practice, onReveal }: { practice: boolean; onReveal: () => void }) {
   const [startedAt] = useState(() => Date.now());
-  const now = useNow(1000);
+  const now = useNow(practice ? 1000 : 60_000);
+  const button = (
+    <button type="button" className="btn btn-primary" onClick={onReveal}>
+      <Icon name="eye" size={16} /> Reveal answer
+    </button>
+  );
+  if (!practice) {
+    return (
+      <div className="reveal-gate">
+        <div>
+          <p className="reveal-gate-title">Ready to check yourself?</p>
+          <p className="reveal-gate-copy">Say your answer out loud first, then compare.</p>
+        </div>
+        {button}
+      </div>
+    );
+  }
   return (
     <div className="practice">
       <div>
@@ -45,9 +62,7 @@ function PracticeGate({ onReveal }: { onReveal: () => void }) {
         <span className="practice-timer" aria-hidden="true">
           <Icon name="clock" size={16} /> {formatElapsed(now - startedAt)}
         </span>
-        <button type="button" className="btn btn-primary" onClick={onReveal}>
-          Reveal the answer
-        </button>
+        {button}
       </div>
     </div>
   );
@@ -117,11 +132,12 @@ export const QuestionItem = memo(function QuestionItem({
   const progress = useStore(progressStore, (s) => s.questions[question.id]);
   const notesOn = useFeature('notes');
   const done = progress?.done ?? false;
-  const [revealed, setRevealed] = useState(false);
+  // A question you've already finished opens straight to its answer; in review the answer is what you're recalling.
+  const [revealed, setRevealed] = useState(() => done && variant === 'study');
+  const [askedForAnswer, setAskedForAnswer] = useState(false);
   const plainTitle = question.title.replace(/`/g, '');
   const triggerId = `q-trigger-${question.id}`;
   const panelId = `q-panel-${question.id}`;
-  const showGate = practiceMode && !revealed && !done && variant === 'study';
 
   return (
     <li className="q" id={`q-${question.id}`} data-open={open} data-done={done}>
@@ -176,10 +192,20 @@ export const QuestionItem = memo(function QuestionItem({
                 <Answer
                   sectionId={question.sectionId}
                   questionId={question.id}
-                  gate={showGate ? <PracticeGate onReveal={() => setRevealed(true)} /> : null}
+                  revealed={revealed}
+                  focusOnReveal={askedForAnswer}
+                  gate={
+                    <RevealGate
+                      practice={practiceMode}
+                      onReveal={() => {
+                        setAskedForAnswer(true);
+                        setRevealed(true);
+                      }}
+                    />
+                  }
                 />
               </Suspense>
-                {question.contributor && !showGate ? (
+                {question.contributor && revealed ? (
                   <p className="contributor-line">
                     Contributed by{' '}
                     <a href={`https://github.com/${encodeURIComponent(question.contributor)}`} target="_blank" rel="noopener noreferrer">
