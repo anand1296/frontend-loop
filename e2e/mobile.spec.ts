@@ -13,6 +13,6 @@ test('mobile: drawer navigation, no horizontal scroll', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine Coding');
 
   await page.locator('.q').first().locator('.q-trigger').click();
-  await expect(page.locator('.q').first().locator('.prose')).toBeVisible();
+  await expect(page.locator('.q').first().locator('.callout-tldr')).toBeVisible();
   expect(await noOverflow()).toBe(true); // wide code blocks scroll inside their own container
 });
