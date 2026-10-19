@@ -35,6 +35,19 @@ func TestCallouts(t *testing.T) {
 	}
 }
 
+func TestPromptCallout(t *testing.T) {
+	res := render(t, "> [!PROMPT]\n> Build a **thing**.\n>\n> **Test cases**\n> - `a()` returns 1\n> - `b()` throws\n\n> [!TLDR]\n> Short answer.")
+	if !strings.HasPrefix(res.HTML, `<aside class="callout callout-prompt"><p class="callout-label">The full question</p>`) {
+		t.Errorf("prompt should be first: %s", res.HTML)
+	}
+	if !strings.Contains(res.HTML, "<li><code>a()</code> returns 1</li>") {
+		t.Errorf("prompt lists should render: %s", res.HTML)
+	}
+	if res.Summary != "Short answer." {
+		t.Errorf("summary must come from the TLDR, got %q", res.Summary)
+	}
+}
+
 func TestSummaryAndText(t *testing.T) {
 	res := render(t, "> [!TLDR]\n> Use `useMemo` for **expensive** work, see [docs](https://react.dev).\n\n### More\n\nBody text.\n\n```ts\nconst hidden = 1;\n```")
 	if res.Summary != "Use useMemo for expensive work, see docs." {

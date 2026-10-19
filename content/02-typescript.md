@@ -12,6 +12,18 @@ tags: narrowing, type guards, satisfies, unknown, assertions
 minutes: 15
 -->
 
+> [!PROMPT]
+> This reducer and these API handlers are full of `as` casts and `!` assertions, and a recent bug shipped because an assertion was wrong. You are asked to remove them without losing safety.
+>
+> **Task**
+> - Model a request's states (idle, loading, success with data, error with message) so impossible combinations don't type check.
+> - Write a custom type guard for an unknown API payload and use `satisfies` for a config object.
+>
+> **Test cases** (should compile as stated)
+> - Accessing `state.data` when `state.status === 'loading'` is a compile error.
+> - `switch (state.status)` with a missing case fails an exhaustiveness check.
+> - `const routes = { home: '/' } satisfies Record<string, string>` keeps `routes.home` as a literal type.
+
 > [!TLDR]
 > `as` tells the compiler "trust me" and switches checking off at that point. Most assertions disappear when you (1) model states as **discriminated unions**, (2) treat external data as `unknown` and **narrow** it with checks or a schema, (3) write **type predicates** for reusable checks, and (4) use **`satisfies`** to validate a literal against a type without widening it. Keep the few real assertions in small, tested adapter modules.
 
@@ -151,6 +163,18 @@ tags: generics, inference, const type parameters, noinfer
 minutes: 15
 -->
 
+> [!PROMPT]
+> Design `pick`, `groupBy` and `createStore` helpers whose generics infer perfectly at call sites, so callers never write type arguments. A current helper forces `pick<User, 'id' | 'name'>(user, ['id', 'name'])`, and callers hate it.
+>
+> **Requirements**
+> - Constrain type parameters to what the function actually needs.
+> - Use `const` type parameters and `NoInfer` where inference would otherwise widen or pick the wrong candidate.
+>
+> **Test cases** (type-level)
+> - `pick(user, ['id', 'name'])` returns `Pick<User, 'id' | 'name'>`, and `['id', 'nope']` is an error.
+> - `groupBy(users, (u) => u.role)` returns `Record<Role, User[]>`.
+> - `createStore({ initial: 0, reducers: { inc: (s) => s + 1 } })` infers the state as `number`.
+
 > [!TLDR]
 > Good generics are **invisible at the call site**: callers never write type arguments, and the result type is exactly what they'd expect. Get there by putting type parameters where TypeScript infers from values, constraining them (`extends`) only as much as needed, relating parameters to each other (`K extends keyof T`), using `const` type parameters to keep literals, and `NoInfer` to stop a parameter from being an inference site.
 
@@ -261,6 +285,15 @@ level: lead
 tags: conditional types, infer, mapped types, template literal types
 minutes: 20
 -->
+
+> [!PROMPT]
+> Implement three utility types and prove they work: `DeepReadonly<T>`, `PathValue<T, P>` (the type at a dotted path like `'user.address.city'`) and a typed event map where `emit('saved', payload)` checks the payload.
+>
+> **Test cases** (use `Expect<Equal<...>>` helpers)
+> - `DeepReadonly<{ a: { b: string[] } }>` makes `a.b` a `readonly string[]` and blocks `x.a.b.push()`.
+> - `PathValue<{ user: { age: number } }, 'user.age'>` is `number`; an invalid path is a compile error.
+> - `emit('saved', 42)` fails when `saved` expects `{ id: string }`.
+> - Explain distribution over unions and how `infer` is used in each.
 
 > [!TLDR]
 > Conditional types (`T extends U ? X : Y`) are `if` statements at the type level; they **distribute** over unions when `T` is a naked type parameter. `infer` extracts a piece of a matched type. Mapped types (`{ [K in keyof T]: ... }`) transform each property and can remap keys with `as`. Template literal types build string types. Together they let library code compute precise types; in app code, use them sparingly and test them.
@@ -384,6 +417,18 @@ tags: discriminated unions, never, reducers, state machines
 minutes: 12
 -->
 
+> [!PROMPT]
+> Model a checkout flow (cart, address, payment, confirming, success, failed) as a typed state machine for a React reducer. Product keeps adding states and the bugs are always "we forgot to handle X".
+>
+> **Requirements**
+> - One object type per state with a literal `status`, carrying only the fields valid there.
+> - Events are typed the same way; the reducer is total and exhaustive.
+>
+> **Test cases**
+> - Dispatching `PAY` while in `cart` returns the same state (or a typed error), never `payment`.
+> - Adding a new state `refunding` to the union makes the reducer fail to compile until it is handled.
+> - `state.error` is only accessible after narrowing to `failed`.
+
 > [!TLDR]
 > Represent each state as its own object type with a literal `status` tag and only the fields valid in that state. Model events the same way. A reducer that `switch`es on both, ends with an `assertNever(x: never)` default, and returns the same state for invalid transitions gives you a state machine where impossible states can't be built and adding a new state is a compile error everywhere it isn't handled.
 
@@ -483,6 +528,18 @@ level: lead
 tags: react, typescript, polymorphic components, generic components, props
 minutes: 18
 -->
+
+> [!PROMPT]
+> Your design system needs a `Button` that can render as `button`, `a` or a router `Link`, a generic `Select<T>` and a `Card` that forwards props to its root element. The current typings use `any` in three places and callers lose autocomplete.
+>
+> **Requirements**
+> - A polymorphic `as` prop that gives the right props for the chosen element.
+> - A generic list component whose `onSelect` receives `T`.
+> - Correct `ref` forwarding (React 19 `ref` as a prop) and prop spreading.
+>
+> **Test cases** (type-level)
+> - `<Button as="a" href="/x">` compiles; `<Button as="a" type="submit">` does not.
+> - `<Select options={users} getLabel={(u) => u.name} onSelect={(u) => u.id} />` infers `u` as `User`.
 
 > [!TLDR]
 > Use `ComponentProps<'button'>` / `ComponentPropsWithoutRef` to extend native elements, `Omit` what you override, and pass the rest through. Make list-like components **generic** so `onSelect` knows the item type. Polymorphic `as` components are useful for design systems but expensive to type and to check; many teams prefer an `asChild`/slot pattern instead. In React 19, `ref` is a normal prop, so `forwardRef` is no longer required.
@@ -587,6 +644,14 @@ tags: zod, validation, openapi, api contracts, boundaries
 minutes: 12
 -->
 
+> [!PROMPT]
+> The backend renamed a field and the web app crashed in production for users with old `localStorage` data, even though everything type checked. You are asked to prevent this class of bug.
+>
+> **Cover**
+> - Which inputs are trust boundaries (API responses, storage, URL params, `postMessage`, feature flags, AI output).
+> - A schema-first approach with zod (or valibot): infer the type from the schema, parse at the edge, and what to do on failure.
+> - Sharing types with the backend (OpenAPI or GraphQL codegen) without trusting them blindly, and how you version stored data.
+
 > [!TLDR]
 > Validate at **trust boundaries**: API responses, `localStorage`, URL params, `postMessage`, feature flags, form input and AI model output. Inside the app, trust the types. Use one source of truth so the type and the runtime check can't drift: either a schema library (zod/valibot) with `z.infer`, or code generated from the backend contract (OpenAPI, GraphQL, protobuf). Decide per boundary whether invalid data should throw, degrade gracefully, or be reported.
 
@@ -653,6 +718,14 @@ level: principal
 tags: soundness, variance, any, index access, compiler options
 minutes: 12
 -->
+
+> [!PROMPT]
+> An interviewer asks: "TypeScript says this code is fine, yet it throws at runtime. Show me three ways that happens and how you'd defend against them."
+>
+> **Cover**
+> - Concrete examples: `any` leakage, unchecked index access, array covariance, method parameter bivariance, `as` casts, `JSON.parse`.
+> - Compiler options that help (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `useUnknownInCatchVariables`).
+> - Lint rules and runtime validation at boundaries, and how you would roll these out in a large codebase.
 
 > [!TLDR]
 > TypeScript deliberately trades soundness for usability. Holes include `any` (which spreads), unchecked index access, method parameter **bivariance**, array covariance, type assertions, `JSON.parse`/`.json()` returning `any`, and non-null `!`. Defend with strict compiler flags (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), lint rules against unsafe `any`, validation at boundaries, and code review norms on assertions.

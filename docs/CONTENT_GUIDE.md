@@ -49,7 +49,8 @@ Lines in these blocks are plain `key: value`; a line starting with `#` is a comm
 
 | Syntax | Label shown | Use for |
 | --- | --- | --- |
-| `> [!TLDR]` | The 60-second answer | Required, first block of every answer |
+| `> [!PROMPT]` | The full question | Optional, must be the very first block. The scenario, constraints and, for coding questions, test cases. Shown before the answer, even in practice mode |
+| `> [!TLDR]` | The 60-second answer | Required, comes right after the prompt (or first without one) |
 | `> [!NOTE]` | Note | Clarifications, context |
 | `> [!TIP]` | Tip | What strong candidates say |
 | `> [!WARNING]` | Common mistake | Pitfalls, misconceptions |

@@ -34,6 +34,7 @@ import (
 
 // Callouts maps the GitHub-alert style marker (> [!TIP]) to its visible label.
 var Callouts = map[string]string{
+	"PROMPT":    "The full question",
 	"TLDR":      "The 60-second answer",
 	"NOTE":      "Note",
 	"TIP":       "Tip",

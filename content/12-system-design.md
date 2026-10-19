@@ -12,6 +12,14 @@ tags: system design, interview framework, radio, requirements, architecture
 minutes: 12
 -->
 
+> [!PROMPT]
+> You are given a vague prompt, "design Google Photos", and 45 minutes. Describe the framework you follow so that the interview doesn't turn into a random walk, and how you would split the time.
+>
+> **Cover**
+> - Stages (such as RADIO): requirements, architecture, data model, interface/API, optimizations, with time per stage.
+> - The clarifying questions and non-functional requirements you always ask.
+> - How you present trade-offs, and signals interviewers look for at senior versus staff level.
+
 > [!TLDR]
 > Drive the conversation through five stages (often called RADIO): **R**equirements (functional, non-functional, scope), **A**rchitecture (components, rendering strategy, data flow), **D**ata model (entities, client state vs server state, normalization), **I**nterface (API contracts, component APIs, events), and **O**ptimizations (performance, accessibility, reliability, security, observability, i18n). Spend the most time where the problem is hard, state trade-offs out loud, and keep a running diagram.
 
@@ -61,6 +69,14 @@ level: lead
 tags: system design, news feed, pagination, real-time, virtualization, optimistic ui
 minutes: 30
 -->
+
+> [!PROMPT]
+> Design the frontend of a news feed like Twitter or LinkedIn: infinite scrolling, new-post indicators, likes, comments, images and video, for web and mobile.
+>
+> **Cover**
+> - Rendering (SSR for first page), pagination, a normalized client cache and optimistic updates.
+> - Real-time inserts without scroll jumps, virtualization, media loading and autoplay.
+> - Performance, accessibility, error handling and metrics; what you'd build first.
 
 > [!TLDR]
 > Server-render the first page of the feed for fast LCP, then hydrate and continue with cursor-based infinite loading. Keep posts in a normalized client cache (post, author, media entities) so likes/edits update everywhere. Deliver new posts through SSE/WebSocket or polling as a "N new posts" pill instead of inserting above the reader. Virtualize with variable heights, lazy-load media with reserved aspect ratios, make reactions optimistic with rollback, and measure scroll performance and engagement.
@@ -177,6 +193,14 @@ tags: system design, e-commerce, ssr, streaming, caching, seo, core web vitals
 minutes: 25
 -->
 
+> [!PROMPT]
+> Design a product detail page for a high-traffic store: SEO-critical, personalized pricing and stock, heavy images, and a strict LCP target.
+>
+> **Cover**
+> - Splitting the page by cacheability: static content, per-user data and real-time stock.
+> - Rendering strategy (SSG/ISR/streaming), image pipeline, caching and CDN design.
+> - SEO (structured data), personalization without layout shift, A/B testing, and Core Web Vitals budgets.
+
 > [!TLDR]
 > Split the page by **cacheability**: product content (title, images, description, specs) is the same for everyone and can be statically generated or cached at the edge with revalidation; price, stock and promotions change often and are fetched fresh or streamed; personalization (recommendations, "you viewed", cart) is per user and loaded client-side or streamed after the shell. Optimize LCP around the hero image, keep the add-to-cart island small and fast, emit structured data for SEO, and make the page resilient: recommendations failing must never break buying.
 
@@ -239,6 +263,14 @@ level: lead
 tags: system design, dashboards, real-time, websockets, charts, performance
 minutes: 30
 -->
+
+> [!PROMPT]
+> Design a real-time analytics dashboard (like Datadog): dozens of widgets, each with a time range, auto-refresh and live updates, used on large screens for hours.
+>
+> **Cover**
+> - Data flow: a query layer with deduping, polling versus WebSocket/SSE, and backpressure when data arrives faster than you can render.
+> - Chart rendering (SVG versus canvas), downsampling, and memory over long sessions.
+> - Time range sync, error and stale-data states, and accessibility of charts.
 
 > [!TLDR]
 > A dashboard is a grid of independent widgets, each with a query, a time range and a refresh policy. Centralize data fetching in a query layer that dedupes identical queries, batches requests, and pauses when the tab is hidden. Stream live updates over WebSocket/SSE, but **buffer and coalesce** them: apply at most once per animation frame (or per second), downsample to the pixel width of the chart, and render large series with canvas/WebGL. Isolate widget failures, keep the time range in the URL, and handle clock and timezone correctly.
@@ -326,6 +358,14 @@ tags: system design, spreadsheet, virtualization, dependency graph, collaboratio
 minutes: 35
 -->
 
+> [!PROMPT]
+> Design a lightweight spreadsheet (Google Sheets lite) in the browser supporting 1 million rows, formulas with dependencies, copy/paste and shared editing.
+>
+> **Cover**
+> - Data model (sparse cells), a virtualized 2D grid, DOM versus canvas rendering.
+> - The formula engine: parsing, a dependency graph, recalculation order, cycle detection.
+> - Collaboration and conflict handling, undo/redo, and performance targets.
+
 > [!TLDR]
 > Model the sheet as a **sparse** map of cells (`"B7" → { raw, value, format }`), render with a 2D-virtualized grid (DOM for modest sizes, canvas for very large sheets plus an overlay for editing and accessibility), and evaluate formulas with a parser → AST → **dependency graph**; on edit, recompute only dependents in topological order and detect cycles. Keep the UI responsive by running recalculation in a Web Worker for large sheets. Collaboration uses operations on cells (or a CRDT) with server ordering, presence cursors, and per-user undo.
 
@@ -404,6 +444,14 @@ tags: system design, collaboration, crdt, operational transformation, yjs, prese
 minutes: 30
 -->
 
+> [!PROMPT]
+> Design the frontend of a collaborative document editor (like Google Docs) with live cursors, offline editing and per-user undo.
+>
+> **Cover**
+> - The editor model (ProseMirror/Lexical/Tiptap versus `contenteditable`) and document schema.
+> - Concurrency: OT versus CRDT trade-offs, presence, and syncing over WebSocket with reconnection.
+> - Offline edits, history/undo semantics in a collaborative context, and what you'd measure.
+
 > [!TLDR]
 > Use a structured editor model (ProseMirror/Lexical/Tiptap), not `contenteditable` HTML. For concurrency, choose **OT** (central server transforms operations; Google Docs) or a **CRDT** (operations commute, merge anywhere, great for offline and peer-to-peer; Yjs/Automerge). For most teams today, Yjs + a sync server + IndexedDB persistence is the pragmatic choice. Presence (cursors, selections) travels on an ephemeral channel. Undo must be **per user** and only revert your own operations. Plan for document size growth (GC/snapshots), permissions, comments anchored to positions, and versions.
 
@@ -469,6 +517,14 @@ level: lead
 tags: system design, offline-first, sync, indexeddb, conflicts, service worker, pwa
 minutes: 25
 -->
+
+> [!PROMPT]
+> Design an offline-first field-service app: technicians fill forms and attach photos with no connectivity, then sync when back online, possibly editing the same record as the office.
+>
+> **Cover**
+> - Local database as the source of truth, a write queue and background sync.
+> - Conflict detection and resolution policies, idempotent sync, and partial failures.
+> - Service worker and storage limits, data migration, and how you show sync state to users.
 
 > [!TLDR]
 > Treat the **local database** (IndexedDB, or SQLite in OPFS) as the app's source of truth for the UI; the network becomes a sync channel. Writes go to the local DB and an **outbox** of operations with idempotency keys; a sync engine pushes the outbox when online and pulls server changes since a cursor. Resolve conflicts with a policy chosen per entity (last-writer-wins per field, server wins, merge, or ask the user). A service worker caches the app shell so it launches offline. Communicate sync state clearly.
@@ -540,6 +596,14 @@ level: senior
 tags: system design, search, autocomplete, caching, latency, accessibility
 minutes: 20
 -->
+
+> [!PROMPT]
+> Design the frontend of search with autocomplete for a large e-commerce site: suggestions appear as you type, with recent searches, categories and products, on slow mobile networks.
+>
+> **Cover**
+> - Request strategy: debouncing, cancellation, caching by prefix, prefetching, and failure fallbacks.
+> - Ranking and display, highlighting, keyboard and screen reader behavior.
+> - Analytics, latency budgets and how you'd test relevance and performance.
 
 > [!TLDR]
 > The frontend's job is to make suggestions feel instant and correct: debounce lightly (or not at all with fast backends), cancel stale requests, cache by normalized prefix (in memory with LRU, optionally IndexedDB for popular prefixes), prefetch likely next prefixes, render results without layout shift, and implement the combobox pattern accessibly. Keep the search state in the URL for results pages, log queries and clicks for ranking, and degrade gracefully when the suggestion service is slow.

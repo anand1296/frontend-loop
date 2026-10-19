@@ -12,6 +12,19 @@ tags: promises, promise.all, allsettled, any, race, machine coding
 minutes: 15
 -->
 
+> [!PROMPT]
+> Implement `promiseAll`, `promiseAllSettled`, `promiseAny` and `promiseRace` without using the native versions, accepting any iterable of values or thenables.
+>
+> **Requirements**
+> - `all` keeps input order and rejects on the first rejection; `any` rejects with an `AggregateError` only when everything rejects.
+> - Plain values are allowed in the input; an empty input must behave like the native one.
+>
+> **Test cases**
+> - `promiseAll([1, Promise.resolve(2), delay(10, 3)])` resolves to `[1, 2, 3]` even if the third settles first elsewhere.
+> - `promiseAll([delay(50, 'a'), Promise.reject(new Error('x'))])` rejects with `x` immediately.
+> - `promiseAny([Promise.reject(1), Promise.reject(2)])` rejects with an `AggregateError` whose `errors` is `[1, 2]`.
+> - `promiseAll([])` resolves `[]`; `promiseRace([])` never settles.
+
 > [!TLDR]
 > `all` resolves with every value **in input order** or rejects with the **first** rejection. `allSettled` never rejects; it reports each outcome. `any` resolves with the first fulfillment or rejects with an `AggregateError` if all fail. `race` settles like whichever settles first. Key details: accept any iterable, wrap non-promises with `Promise.resolve`, preserve order by index (not completion), and handle the empty input case (`all([])` resolves immediately, `any([])` rejects, `race([])` stays pending forever).
 
@@ -122,6 +135,19 @@ level: lead
 tags: concurrency, promise pool, abortsignal, cancellation, machine coding
 minutes: 20
 -->
+
+> [!PROMPT]
+> Write `runPool(tasks, { limit, signal })`: run at most `limit` async tasks at once, return results in the original order, and stop cleanly on the first error or when the `AbortSignal` fires.
+>
+> **Requirements**
+> - No more than `limit` tasks in flight at any moment; tasks that haven't started never start after a failure or abort.
+> - Each task receives an `AbortSignal` so in-flight work can be cancelled.
+>
+> **Test cases**
+> - 10 tasks, `limit: 3`: a counter of concurrently running tasks never exceeds 3 and results come back in input order.
+> - Task 4 rejects: the pool rejects with that error and tasks 5 to 10 never start.
+> - `controller.abort()` mid-run rejects with the abort reason and aborts the tasks' signals.
+> - `limit: 0` rejects with a `RangeError`; `tasks: []` resolves `[]`.
 
 > [!TLDR]
 > Start N workers that pull the next task index from a shared cursor until tasks run out. Store results by index. For "stop on first error", track failure with a **separate boolean** (because `throw undefined` is legal), stop scheduling new tasks, and **abort** in-flight ones through an `AbortSignal` passed to every task. Also respect an external signal so callers can cancel the whole batch. Already-running work only stops if the task honors the signal.
@@ -240,6 +266,20 @@ level: senior
 tags: retry, backoff, jitter, http, resilience
 minutes: 15
 -->
+
+> [!PROMPT]
+> Build `retry(fn, options)` for API calls: exponential backoff with full jitter, a cap, respect for `Retry-After`, and a rule for which errors are worth retrying.
+>
+> **Requirements**
+> - Wait `random(0, min(cap, base * 2^attempt))` between attempts; honor `Retry-After` (seconds or HTTP date) when present.
+> - Never retry non-idempotent failures that are the caller's fault (400, 401, 403, 404); do retry network errors, 408, 429 and most 5xx.
+> - Cancellable with an `AbortSignal`, including during the wait.
+>
+> **Test cases** (fake timers)
+> - A function failing twice then succeeding resolves on the third call, with two waits.
+> - A 404 is thrown immediately without retrying.
+> - A 429 with `Retry-After: 2` waits at least 2000 ms before the next attempt.
+> - Aborting during a wait rejects with the abort reason and makes no further call.
 
 > [!TLDR]
 > Retry only **transient** failures: network errors, timeouts, 408, 429 and most 5xx on **idempotent** requests. Wait `random(0, min(cap, base * 2^attempt))` (full jitter) to avoid synchronized retry storms, honor `Retry-After` when the server sends it, cap attempts and total time, and stop immediately when the caller aborts. Never retry 4xx validation/auth errors or programming errors.
@@ -369,6 +409,16 @@ level: senior
 tags: debounce, throttle, react hooks, timers, machine coding
 minutes: 15
 -->
+
+> [!PROMPT]
+> Implement `debounce(fn, wait, { leading, trailing, maxWait })` with `cancel()`, `flush()` and `pending()`, then a `useDebouncedCallback` React hook that always calls the latest callback and cleans up on unmount.
+>
+> **Test cases** (fake timers)
+> - Three calls 50 ms apart with `wait: 100` → `fn` runs once, 100 ms after the last call, with the last arguments.
+> - `leading: true, trailing: false`: the first call runs immediately and later calls in the window are ignored.
+> - `maxWait: 300` with a call every 100 ms for a second → `fn` still runs about every 300 ms.
+> - `flush()` runs a pending call immediately; `cancel()` drops it.
+> - The hook: re-rendering with a new callback uses the new closure, and unmounting cancels a pending call.
 
 > [!TLDR]
 > Debounce delays a call until input has been quiet for `wait` ms. Production versions add `leading`/`trailing` edges, `maxWait` (guarantee a call at least every N ms during continuous input, which is how throttle can be built from debounce), `cancel()`, `flush()`, and always call with the **latest** arguments. In React, keep the debounced function stable across renders and read the latest callback from a ref, so the timer isn't reset by re-renders and never calls a stale closure.
@@ -535,6 +585,19 @@ tags: caching, deduplication, stale-while-revalidate, race conditions, react que
 minutes: 18
 -->
 
+> [!PROMPT]
+> Build `AsyncCache` with `get(key, loader)`, TTL, stale-while-revalidate, `invalidate(key)` and request deduplication. Two components asking for the same user at the same moment must trigger one request.
+>
+> **Requirements**
+> - Fresh entries return immediately; stale entries return immediately and refresh in the background; expired ones wait for the loader.
+> - A failed refresh must not poison the cache. An `invalidate` during an in-flight load must not let the old response overwrite newer data.
+>
+> **Test cases** (fake timers)
+> - Two concurrent `get('u1', loader)` calls → the loader runs once and both receive the same value.
+> - Inside the TTL a second `get` doesn't call the loader; in the stale window it returns the old value and calls the loader once in the background.
+> - `get` → `invalidate` → the first (slow) load resolves late → the cache does not store its value.
+> - A loader that rejects is not cached; the next `get` retries.
+
 > [!TLDR]
 > Keep one entry per key holding either the in-flight promise or the settled value with a timestamp. Concurrent callers share the in-flight promise (dedupe). Fresh values return immediately; stale values return immediately **and** trigger a background refresh (SWR). Failures aren't cached. The subtle part is invalidation: an `invalidate()` during an in-flight request must stop that request from writing back, which needs a per-key **generation** number checked before every write.
 
@@ -657,6 +720,16 @@ tags: event emitter, pub sub, typescript, machine coding
 minutes: 12
 -->
 
+> [!PROMPT]
+> Implement a type-safe `Emitter<Events>` with `on`, `off`, `once` and `emit`. `on` returns an unsubscribe function, and one listener throwing must not stop the others.
+>
+> **Test cases**
+> - `on('saved', fn)` then `emit('saved', { id: 'a' })` calls `fn` with that payload; `emit('saved', 42)` is a compile error.
+> - The function returned by `on` removes the listener; calling it twice is harmless.
+> - `once` fires exactly once even if `emit` is called twice.
+> - A listener added during `emit` doesn't run in that same emit; one removed during `emit` is safe.
+> - Three listeners where the first throws → the other two still run and the error is reported (not swallowed silently).
+
 > [!TLDR]
 > Map each event name to a `Set` of listeners, typed by an event map interface so `emit('saved', payload)` checks the payload. `on` returns an unsubscribe function. Iterate over a **copy** of the listener set so listeners can unsubscribe during emit. Isolate listener errors so one failing listener doesn't stop the rest, and make `once` removable by the original function reference.
 
@@ -742,6 +815,15 @@ level: senior
 tags: deep clone, structuredclone, recursion, cycles, machine coding
 minutes: 12
 -->
+
+> [!PROMPT]
+> Write `deepClone(value)` that handles nested objects, arrays, `Date`, `Map`, `Set` and circular references. Then say when you would not write it at all.
+>
+> **Test cases**
+> - `const a = { n: 1 }; a.self = a; const b = deepClone(a);` → `b.self === b` and `b !== a`.
+> - `deepClone(new Map([[{ k: 1 }, new Set([1])]]))` returns an equal but independent structure.
+> - A `Date` clone is a different object with the same time; mutating the original array doesn't affect the copy.
+> - Functions, class instances and DOM nodes: say what your version does, and compare with `structuredClone`.
 
 > [!TLDR]
 > Use `structuredClone` in production: it handles cycles, `Map`, `Set`, `Date`, `RegExp`, typed arrays, `Blob`s and errors, but not functions, DOM nodes, class prototypes or symbols (it returns plain objects). When asked to implement one, recurse with a `WeakMap` from original to copy (handles cycles and shared references), switch on type for built-ins, and preserve the prototype if required.
@@ -836,6 +918,15 @@ level: senior
 tags: race conditions, abortcontroller, switchmap, stale responses
 minutes: 12
 -->
+
+> [!PROMPT]
+> A search box and a filter panel both fire requests, and sometimes an old response arrives after a newer one and overwrites the UI. Build a `latest(fn)` helper that makes only the most recent call matter, and explain when you cancel versus when you ignore.
+>
+> **Test cases**
+> - Call 1 (slow, 300 ms) then call 2 (fast, 50 ms) → call 1 resolves as `{ stale: true }`, call 2 as `{ stale: false, value }`.
+> - The signal passed to call 1's function is aborted as soon as call 2 starts.
+> - An error from a superseded call is reported as stale, not as a failure; a real error from the latest call propagates.
+> - Discuss: when cancelling is unsafe (non-idempotent requests) and ignoring is the right choice.
 
 > [!TLDR]
 > When requests overlap (typeahead, filters, tab switches), older responses can arrive after newer ones. Two fixes: **ignore** stale results (compare a request id/version before applying) or **cancel** older requests (`AbortController`). Cancel when the work is expensive or has side effects you don't want; ignore when cancellation isn't possible. Combine both: abort the previous request *and* guard the write. This is RxJS's `switchMap` semantics; other strategies are `concatMap` (queue), `exhaustMap` (ignore new while busy) and `mergeMap` (all in parallel).

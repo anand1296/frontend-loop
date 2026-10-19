@@ -12,6 +12,14 @@ tags: xss, react, sanitization, dompurify, security
 minutes: 15
 -->
 
+> [!PROMPT]
+> A product manager wants rich-text comments with links and images. Security review asks how React protects you from XSS and where it doesn't. Walk through the design.
+>
+> **Cover**
+> - What React escapes by default and the unsafe sinks: `dangerouslySetInnerHTML`, `javascript:` URLs, `href`/`src`, third-party widgets.
+> - Sanitizing with DOMPurify (allowlists, hooks, when to sanitize: input or output), and Markdown pipelines.
+> - Defense in depth: CSP, Trusted Types, and testing with payloads.
+
 > [!TLDR]
 > React escapes strings rendered as text and attribute values, which stops most injection. It does **not** protect `dangerouslySetInnerHTML`, `href`/`src` with `javascript:` URLs (React warns but older versions allowed them), direct DOM APIs (`innerHTML`, `insertAdjacentHTML`), third-party widgets, server-rendered state embedded in `<script>` tags, or `eval`-like sinks. Sanitize HTML with DOMPurify (or render Markdown to a safe subset), validate URL schemes, serialize SSR state safely, and add CSP as defense in depth.
 
@@ -91,6 +99,14 @@ tags: csp, content security policy, trusted types, nonces, security headers
 minutes: 15
 -->
 
+> [!PROMPT]
+> Security wants a strict Content Security Policy. Your app has inline scripts, third-party tags and several teams shipping independently. Roll it out without breaking production.
+>
+> **Cover**
+> - A nonce-based `strict-dynamic` policy versus allowlists, and what inline scripts and `eval` need.
+> - Report-only first, collecting and triaging violation reports, and a rollout plan.
+> - Trusted Types for DOM sinks, and how you keep the policy from eroding over time.
+
 > [!TLDR]
 > CSP tells the browser which scripts may execute. A **strict CSP** uses per-response **nonces** (or hashes) plus `'strict-dynamic'`, so only scripts you emitted (and scripts they load) run, and injected `<script>` tags or inline handlers don't. Trusted Types (`require-trusted-types-for 'script'`) makes DOM XSS sinks like `innerHTML` reject plain strings, forcing sanitization through a named policy. Roll out with `Content-Security-Policy-Report-Only`, collect violation reports, fix, then enforce.
 
@@ -153,6 +169,14 @@ tags: authentication, tokens, cookies, bff, security, oauth
 minutes: 15
 -->
 
+> [!PROMPT]
+> You are reviewing a SPA that stores access and refresh tokens in `localStorage`. A security engineer says this is an XSS time bomb. Decide where tokens should live.
+>
+> **Cover**
+> - Options (localStorage, memory, `HttpOnly` cookies) with the threats each handles.
+> - The BFF pattern: how it works, what it costs and when it is worth it.
+> - Refresh handling, logout, token expiry, and the CSRF implications of cookies.
+
 > [!TLDR]
 > Anything JavaScript can read, an XSS can steal. Tokens in `localStorage` are exfiltratable and long-lived; tokens in memory are better (lost on reload, so you need a silent refresh) but still usable by an XSS while the page is open. The most robust option for browser apps is the **Backend-for-Frontend (BFF)**: the server does the OAuth flow, keeps tokens server-side, and gives the browser an `HttpOnly; Secure; SameSite` session cookie. The SPA calls its BFF, which attaches tokens to upstream API calls. No token ever reaches JavaScript.
 
@@ -202,6 +226,14 @@ tags: csrf, samesite, cookies, security
 minutes: 10
 -->
 
+> [!PROMPT]
+> Your API uses cookie sessions. A pen tester forges a cross-site `POST` that changes a user's email. You are told `SameSite=Lax` is the default, so is CSRF solved?
+>
+> **Cover**
+> - How CSRF works and what `SameSite` Strict, Lax and None change (and the gaps: subdomains, GET side effects, older browsers).
+> - Defenses that still matter: CSRF tokens, custom headers, origin checks and `Sec-Fetch-Site`.
+> - How CSRF differs from XSS and CORS, and how you'd test for it.
+
 > [!TLDR]
 > CSRF works when a browser automatically attaches cookies to a request a malicious site triggers. `SameSite=Lax` (the default in modern browsers) blocks cookies on cross-site subresource requests and cross-site POSTs, which stops most CSRF. You still want explicit protection because: `Lax` allows top-level GET navigations (so never mutate on GET), "same-site" includes sibling subdomains (a compromised `blog.acme.com` is same-site with `app.acme.com`), and older browsers or `SameSite=None` cookies exist. Add a CSRF token (synchronizer or double-submit) or require a custom header and check `Origin`.
 
@@ -245,6 +277,14 @@ level: lead
 tags: oauth, pkce, oidc, authentication, security
 minutes: 12
 -->
+
+> [!PROMPT]
+> Implement login with a third-party identity provider in a pure SPA. Walk through OAuth authorization code flow with PKCE end to end, and say what the attacks are that each step prevents.
+>
+> **Cover**
+> - The sequence: `code_verifier`, `code_challenge`, `state`, redirect, code exchange, tokens.
+> - Why the implicit flow was dropped, and what `state` and PKCE protect against.
+> - Where tokens end up, refresh strategy, logout, and common implementation mistakes.
 
 > [!TLDR]
 > Browser apps use the **authorization code flow with PKCE** (the implicit flow is deprecated). The app creates a random `code_verifier`, sends its SHA-256 hash (`code_challenge`) with the authorization redirect, receives a one-time `code` back on the redirect URI, and exchanges `code + code_verifier` for tokens. PKCE ensures a stolen code is useless without the verifier. Add `state` (CSRF for the login flow) and `nonce` (OIDC ID token replay). Ideally the exchange happens in a BFF so tokens never touch the browser.
@@ -329,6 +369,14 @@ level: lead
 tags: supply chain, dependencies, npm, sri, third-party scripts, security
 minutes: 12
 -->
+
+> [!PROMPT]
+> A popular npm package you depend on is compromised, and a post-install script runs in your CI. Describe how you reduce the likelihood and blast radius of supply-chain attacks.
+>
+> **Cover**
+> - Dependency hygiene: lockfiles, pinning, `npm ci`, install scripts, provenance and auditing.
+> - Third-party scripts: Subresource Integrity, CSP, sandboxed iframes, a tag-manager policy.
+> - Detection and response: monitoring advisories, automated updates with review, and an incident playbook.
 
 > [!TLDR]
 > Your bundle contains hundreds of packages you didn't write, and every one of them runs with full access to your users' sessions. Reduce exposure (fewer, well-maintained dependencies), pin and review (lockfiles, `npm ci`, review lockfile diffs), detect (automated advisories, Socket/Snyk-style behavior analysis for install scripts and new network access), contain (disable install scripts where possible, CSP, Trusted Types), and govern third-party tags (allowlist, SRI for static CDN files, loading through your own domain). Have an incident playbook for "a dependency was compromised".

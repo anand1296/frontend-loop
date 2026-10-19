@@ -171,14 +171,15 @@ export const QuestionItem = memo(function QuestionItem({
       <div className="q-panel" id={panelId} role="region" aria-labelledby={triggerId} hidden={!open}>
         {open ? (
           <>
-            {showGate ? (
-              <PracticeGate onReveal={() => setRevealed(true)} />
-            ) : (
-              <ErrorBoundary>
-                <Suspense fallback={<AnswerSkeleton />}>
-                  <Answer sectionId={question.sectionId} questionId={question.id} />
-                </Suspense>
-                {question.contributor ? (
+            <ErrorBoundary>
+              <Suspense fallback={<AnswerSkeleton />}>
+                <Answer
+                  sectionId={question.sectionId}
+                  questionId={question.id}
+                  gate={showGate ? <PracticeGate onReveal={() => setRevealed(true)} /> : null}
+                />
+              </Suspense>
+                {question.contributor && !showGate ? (
                   <p className="contributor-line">
                     Contributed by{' '}
                     <a href={`https://github.com/${encodeURIComponent(question.contributor)}`} target="_blank" rel="noopener noreferrer">
@@ -188,7 +189,6 @@ export const QuestionItem = memo(function QuestionItem({
                   </p>
                 ) : null}
               </ErrorBoundary>
-            )}
             <div className="q-footer">
               {variant === 'review' ? (
                 <div className="q-actions">

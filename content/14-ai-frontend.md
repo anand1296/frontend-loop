@@ -12,6 +12,14 @@ tags: llm, streaming, sse, fetch, readablestream, abortcontroller, react
 minutes: 20
 -->
 
+> [!PROMPT]
+> Build the chat UI for an LLM feature: tokens stream in, the user can stop generation, and the page must stay smooth during long answers.
+>
+> **Cover**
+> - Reading a streamed response (`fetch` with `ReadableStream` or SSE), parsing events and handling partial chunks.
+> - Cancellation with `AbortController`, error and retry states, and keeping API keys on the server.
+> - Render batching, scroll anchoring, and accessibility (announcing completion without reading every token).
+
 > [!TLDR]
 > Call your own backend (never the model provider directly from the browser with a secret key), which streams Server-Sent Events. On the client, read `response.body` with a `TextDecoder` in streaming mode, split on blank lines into SSE events (handling events split across chunks), parse `data:` payloads, and append text deltas. Batch UI updates to animation frames, support Stop via `AbortController`, keep a message state machine (`streaming` → `done` | `error` | `stopped`), and keep partial text on errors.
 
@@ -159,6 +167,14 @@ tags: markdown, streaming, sanitization, xss, performance, llm
 minutes: 15
 -->
 
+> [!PROMPT]
+> The model's Markdown arrives token by token: half a code fence, an unfinished link, a table in progress. Render it safely and without flicker.
+>
+> **Cover**
+> - Treating model output as untrusted: no raw HTML, link allowlists, sanitization.
+> - Handling incomplete syntax (closing open fences virtually, deferring ambiguous tokens) and re-parse cost.
+> - Code blocks (highlighting, copy), performance for long messages, and testing with adversarial input.
+
 > [!TLDR]
 > Model output is untrusted input that arrives incomplete. Treat it like user-generated content: render Markdown with raw HTML **disabled** (or sanitized), allow only safe link protocols, and never `eval` or inject model-produced HTML/JS. For performance, split the text into **blocks**, memoize completed blocks, and only re-parse the last (growing) block on each update. Handle unterminated syntax gracefully (an open code fence renders as a code block in progress, not as raw backticks).
 
@@ -230,6 +246,14 @@ level: principal
 tags: llm, tool calling, generative ui, structured output, safety, human in the loop
 minutes: 20
 -->
+
+> [!PROMPT]
+> An AI assistant can call tools such as `create_invoice` or `search_orders` and return structured data that your UI should render as components and confirmations. Design it safely.
+>
+> **Cover**
+> - A registry of allowed tools and components with schema validation; never executing model-provided code.
+> - Human-in-the-loop: confirmation for risky actions, previews, undo, and audit logs.
+> - Error handling for invalid arguments, partial results and streaming tool calls.
 
 > [!TLDR]
 > With tool calling, the model returns **structured requests** (`{ tool: "create_invoice", args: {...} }`) instead of prose. The frontend maps a fixed **registry** of tool names to typed renderers and handlers, validates arguments with schemas before showing or running anything, and requires explicit **user confirmation** for actions with side effects (send, pay, delete), showing exactly what will happen. Read-only tools can auto-run. Never let the model choose arbitrary components, URLs or code to execute; it only picks from what you've allowlisted.
@@ -306,6 +330,14 @@ tags: rag, citations, ux, trust, feedback, llm
 minutes: 12
 -->
 
+> [!PROMPT]
+> Your company launches an AI assistant that answers from internal documents. Users stop trusting it after a few wrong answers. Design the UX so answers are checkable and failures are graceful.
+>
+> **Cover**
+> - Citations and source previews, confidence and "I don't know" states, and empty or conflicting results.
+> - Feedback loops (thumbs, corrections) and how they reach the retrieval and evaluation process.
+> - Permission-aware sources, and how you'd measure trust and answer quality.
+
 > [!TLDR]
 > Retrieval-augmented answers are only as trustworthy as their sources, so the UI should make sources **visible and checkable**: inline citations linked to the exact passages, a sources panel, and freshness information. Handle "no good sources" honestly (say so and offer a search or a human), separate retrieved facts from model reasoning, collect feedback on specific answers, and log which documents were used so retrieval quality can be improved.
 
@@ -336,6 +368,14 @@ level: lead
 tags: llm, latency, cost, caching, model routing, performance
 minutes: 12
 -->
+
+> [!PROMPT]
+> Your AI feature takes 8 seconds and costs more than expected as usage grows. Reduce both latency and cost without making answers worse.
+>
+> **Cover**
+> - Perceived latency: streaming, progress, and optimistic UI; actual latency: model choice and routing, prompt size, caching.
+> - Cost levers: caching (exact and semantic), batching, shorter context, smaller models for easy tasks, rate limits.
+> - Measuring quality alongside cost so savings don't hurt users.
 
 > [!TLDR]
 > LLM calls are slow (seconds) and priced per token, so design for both. Perceived latency: stream tokens, show progress for multi-step work, and do useful UI work while waiting. Real latency and cost: smaller/faster models for simple tasks (route by task), prompt caching for long shared prefixes, response caching for repeated deterministic queries, shorter prompts and outputs, and avoiding calls entirely (heuristics, debounced triggers, explicit user intent instead of firing on every keystroke). Enforce per-user rate limits and budgets on the server.
@@ -371,6 +411,14 @@ level: principal
 tags: llm, evaluation, evals, observability, monitoring, quality
 minutes: 15
 -->
+
+> [!PROMPT]
+> A prompt change silently made answers worse and nobody noticed for two weeks. Design the evaluation and monitoring system for an AI feature.
+>
+> **Cover**
+> - Offline evals: a dataset from real cases, automated and human-graded metrics, regression gates in CI.
+> - Online monitoring: tracing, user feedback signals, cost and latency, drift detection.
+> - Release practices (shadow, A/B, canary) and how you triage a regression.
 
 > [!TLDR]
 > AI features regress silently when prompts, models or retrieval change, so quality needs the same rigor as tests. Build an **eval set** of real, representative inputs with expected properties; score outputs with code checks (format, schema, contains/excludes), model-graded rubrics, and periodic human review; run evals in CI on every prompt/model change. In production, trace each request (prompt version, model, retrieved context, tool calls, latency, tokens), collect explicit and implicit feedback, monitor quality proxies, and roll out changes behind flags with comparisons.

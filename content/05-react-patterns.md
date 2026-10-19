@@ -12,6 +12,15 @@ tags: compound components, context, component api, design systems
 minutes: 15
 -->
 
+> [!PROMPT]
+> Design the API for a `Tabs` component used across the company: `Tabs`, `Tabs.List`, `Tabs.Trigger`, `Tabs.Panel`. It must work controlled and uncontrolled, be accessible, and not break when consumers wrap parts in their own components.
+>
+> **Test cases** (behavior)
+> - Clicking a trigger shows its panel and hides the others; the matching `aria-selected` and `aria-controls` are set.
+> - Arrow keys move focus between triggers (roving tabindex); Home/End jump to first/last.
+> - Rendering a `Trigger` outside `Tabs` throws a helpful error.
+> - Discuss when a compound API is the wrong choice (simple props or a `items` array is better).
+
 > [!TLDR]
 > Compound components split one widget into cooperating parts (`<Tabs>`, `<Tabs.List>`, `<Tabs.Trigger>`, `<Tabs.Panel>`) that share state through a private context. Consumers get control over **structure and markup** (put a badge in a trigger, wrap the list in a toolbar) without a prop for every variation. Costs: implicit coupling through context, harder static validation, and more API surface. Use it for widgets with flexible layout; use a plain props API for simple, rigid components.
 
@@ -146,6 +155,14 @@ tags: headless ui, hooks, prop getters, design systems, accessibility
 minutes: 15
 -->
 
+> [!PROMPT]
+> Your company has three design systems and a lot of duplicated dropdown logic. You propose headless components. Explain the idea and design `useCombobox` so any team can render it their own way.
+>
+> **Cover**
+> - What behavior and accessibility the hook owns (state, keyboard, ARIA, focus) and what it leaves to the consumer.
+> - The API shape: prop getters (`getInputProps`, `getItemProps`) versus render props versus compound parts.
+> - Testing the behavior once, and the downsides (API surface, upgrade friction, leaky abstractions).
+
 > [!TLDR]
 > A headless component owns **behavior and accessibility** (state, keyboard handling, ARIA wiring, focus management) and gives rendering entirely to the consumer, usually through a hook that returns state plus **prop getters** (`getToggleProps()`, `getItemProps(item)`). It lets a design system support many visual styles with one correct implementation. The trade-off is more work for consumers, so most teams ship a headless layer **and** a styled layer built on it.
 
@@ -225,6 +242,15 @@ tags: controlled components, uncontrolled, hooks, component api
 minutes: 12
 -->
 
+> [!PROMPT]
+> Write `useControllableState({ value, defaultValue, onChange })` so one component supports both controlled and uncontrolled use, like a native input.
+>
+> **Test cases**
+> - Uncontrolled: starts at `defaultValue`, updates itself and calls `onChange`.
+> - Controlled: ignores internal updates, only changes when `value` changes, and still calls `onChange` with the requested value.
+> - Switching from uncontrolled to controlled (or back) logs a development warning.
+> - A functional updater `setValue((v) => v + 1)` works in both modes and doesn't use a stale value.
+
 > [!TLDR]
 > Reusable inputs should work both ways: **uncontrolled** (`defaultValue`, component owns state) for simple use, and **controlled** (`value` + `onChange`, parent owns state) when the parent needs to read, validate or reset it. A `useControllableState` hook picks the mode from whether `value` is `undefined`, always calls `onChange`, only updates internal state when uncontrolled, and warns when a component switches modes during its lifetime.
 
@@ -296,6 +322,19 @@ level: senior
 tags: forms, react-hook-form, zod, validation, accessibility
 minutes: 18
 -->
+
+> [!PROMPT]
+> Build a signup form with email, password, a repeatable "team members" list, an async "username available" check and server-side errors that must land on the right fields.
+>
+> **Requirements**
+> - One zod schema as the source of truth for types and validation (client and server).
+> - Validation timing that doesn't shout while typing; accessible error messages.
+>
+> **Test cases**
+> - Submitting empty shows errors and focuses the first invalid field.
+> - A taken username (async check) marks only that field invalid and blocks submit.
+> - A 422 response with `{ email: 'already used' }` is shown on the email field.
+> - Adding and removing team members keeps values and errors aligned.
 
 > [!TLDR]
 > react-hook-form keeps fields **uncontrolled** and stores values in refs, so typing doesn't re-render the whole form. A zod schema (via `zodResolver`) gives one source of truth for types and validation, shared with the server. Handle the three error sources separately: **field validation** (schema), **async checks** (debounced, cancellable), and **server errors** (mapped back with `setError`). Make it accessible: labels, `aria-invalid`, `aria-describedby` for messages, focus the first error on submit.
@@ -414,6 +453,14 @@ tags: error boundaries, suspense, resilience, loading states
 minutes: 12
 -->
 
+> [!PROMPT]
+> A large app crashes completely when one widget throws, and shows a wall of spinners on every navigation. You are asked to design where error boundaries and Suspense boundaries go.
+>
+> **Cover**
+> - Boundary placement: app shell, route, and independent widgets, with the reasoning for each.
+> - Recovery (retry with `resetKeys`, reporting to monitoring) and what boundaries do not catch (event handlers, async code).
+> - Avoiding waterfalls and spinner storms: reveal order, `useTransition` for navigation, skeleton fidelity.
+
 > [!TLDR]
 > Place boundaries along **independent units of UI**: the app shell (last-resort crash screen), each route (one broken page shouldn't break navigation), and each self-contained widget or panel (one failing chart shouldn't blank the dashboard). Pair each error boundary with a recovery action (retry, reset on navigation) and reporting. Suspense boundaries follow the same regions, chosen so the page reveals in a deliberate order instead of a cascade of spinners.
 
@@ -481,6 +528,14 @@ level: lead
 tags: component api, code review, composition, design systems, props
 minutes: 12
 -->
+
+> [!PROMPT]
+> You are reviewing a pull request that adds a seventh boolean prop to `<Modal>` (`isCentered`, `noPadding`, `hasFooter`, `wide`...). Review the API and propose a better one.
+>
+> **Cover**
+> - The smell: boolean explosion and impossible combinations; how you'd find the real variants.
+> - Alternatives: composition and slots, a `variant` union, headless parts, controlled/uncontrolled state.
+> - How you give the feedback kindly, plan a non-breaking migration and add API tests (types and behavior).
 
 > [!TLDR]
 > Bad component APIs grow by accretion: every new requirement adds a boolean prop until nobody knows which combinations work. In a review, look for boolean flags that encode variants (replace with a `variant` union), props that pass content (replace with `children`/slots), props that configure internal structure (replace with composition), and impossible combinations (replace with discriminated unions). Good APIs are small, composable, consistent across the system, and hard to misuse.
