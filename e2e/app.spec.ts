@@ -89,6 +89,38 @@ test('the answer waits behind a Reveal answer button, and the full question stay
   await expect(first.locator('.callout-tldr')).toBeVisible();
 });
 
+test('framework switch shows React, Angular or Vue code and remembers the choice', async ({ page }) => {
+  await page.goto('/#typeahead-combobox');
+  const question = page.locator('#q-typeahead-combobox');
+  if ((await question.locator('.q-trigger').getAttribute('aria-expanded')) !== 'true') await question.locator('.q-trigger').click();
+  await question.getByRole('button', { name: 'Reveal answer' }).click();
+
+  const switcher = question.getByRole('radiogroup', { name: 'Show code in' });
+  await expect(switcher.getByRole('radio', { name: 'React' })).toHaveAttribute('aria-checked', 'true');
+  await expect(question.locator('.fw[data-fw="react"]')).toBeVisible();
+  await expect(question.locator('.fw[data-fw="angular"]')).toBeHidden();
+  await expect(question.locator('.callout-tldr')).toBeVisible(); // shared content never hides
+
+  await switcher.getByRole('radio', { name: 'Angular' }).click();
+  await expect(question.locator('.fw[data-fw="angular"]')).toBeVisible();
+  await expect(question.locator('.fw[data-fw="react"]')).toBeHidden();
+
+  // The choice follows the reader to other questions and across reloads.
+  await page.goto('/#modal-dialog');
+  await page.reload();
+  const modal = page.locator('#q-modal-dialog');
+  if ((await modal.locator('.q-trigger').getAttribute('aria-expanded')) !== 'true') await modal.locator('.q-trigger').click();
+  await modal.getByRole('button', { name: 'Reveal answer' }).click();
+  await expect(modal.locator('.fw[data-fw="angular"]')).toBeVisible();
+
+  // A framework-neutral answer has no switch.
+  await page.goto('/#http-caching-spa');
+  const neutral = page.locator('#q-http-caching-spa');
+  if ((await neutral.locator('.q-trigger').getAttribute('aria-expanded')) !== 'true') await neutral.locator('.q-trigger').click();
+  await neutral.getByRole('button', { name: 'Reveal answer' }).click();
+  await expect(neutral.getByRole('radiogroup', { name: 'Show code in' })).toHaveCount(0);
+});
+
 test('practice mode adds the stopwatch to the reveal step', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).first().click();

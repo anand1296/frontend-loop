@@ -480,6 +480,7 @@ Why this is good:
 - Late `PROGRESS` events after a cancel are **ignored by construction**, which is the classic race in upload UIs.
 - Add `{ status: 'paused' }` and every `switch (state.status)` with `assertNever` fails to compile until handled.
 
+:::react
 ### Rendering by state
 
 ```tsx
@@ -506,6 +507,91 @@ function UploadView({ state, onCancel }: { state: UploadState; onCancel: () => v
 
 > [!NOTE]
 > Storing an `AbortController` (non-serializable) in reducer state is fine for local `useReducer`. In Redux it violates serializability; keep controllers in a ref or a side map keyed by upload id.
+:::
+
+:::angular
+### Rendering by state (Angular)
+
+Keep the state in a signal and update it with the same pure reducer. The `@switch` block narrows `state()` per case (the template type-checker compiles it to a TypeScript `switch`, so aliasing the value with `@let` lets each case narrow the union), and a `@default` that requires `never` keeps it exhaustive.
+
+```ts
+@Component({
+  selector: 'app-upload-view',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @let s = state();
+    @switch (s.status) {
+      @case ('idle') { <p>Choose a file to upload.</p> }
+      @case ('uploading') {
+        <progress [value]="s.progress" max="1" [attr.aria-label]="'Uploading ' + s.file.name"></progress>
+        <button type="button" (click)="cancel.emit()">Cancel</button>
+      }
+      @case ('done') { <a [href]="s.url">{{ s.file.name }}</a> }
+      @case ('failed') { <p role="alert">Upload failed: {{ s.error }}</p> }
+    }
+  `,
+})
+export class UploadView {
+  readonly state = input.required<UploadState>();
+  readonly cancel = output<void>();
+}
+```
+
+```ts
+// In the store: a signal plus the pure reducer. `dispatch` is the only writer.
+@Injectable()
+export class UploadStore {
+  readonly state = signal<UploadState>({ status: 'idle' });
+  dispatch(event: UploadEvent): void {
+    this.state.update((current) => uploadReducer(current, event));
+  }
+}
+```
+
+Exhaustiveness in templates comes from `strictTemplates`: accessing `s.url` in the `uploading` case is a compile error. To get a hard failure for a missing case, add a typed helper (`protected readonly never = assertNever`) and call it from `@default`, or keep the exhaustive check in a TypeScript method that the template calls through a `computed`.
+
+> [!NOTE]
+> A non-serializable `AbortController` in a signal-held state object is fine for a component- or feature-scoped store. In NgRx it violates the serializability checks; keep controllers in a map keyed by upload id.
+:::
+
+:::vue
+### Rendering by state (Vue)
+
+Keep the state in a `shallowRef` and update it with the same pure reducer. `v-if` / `v-else-if` chains narrow a discriminated union in the template when type-checked with `vue-tsc`.
+
+```vue
+<script setup lang="ts">
+const props = defineProps<{ state: UploadState }>();
+const emit = defineEmits<{ cancel: [] }>();
+</script>
+
+<template>
+  <p v-if="state.status === 'idle'">Choose a file to upload.</p>
+  <div v-else-if="state.status === 'uploading'">
+    <progress :value="state.progress" max="1" :aria-label="`Uploading ${state.file.name}`" />
+    <button type="button" @click="emit('cancel')">Cancel</button>
+  </div>
+  <a v-else-if="state.status === 'done'" :href="state.url">{{ state.file.name }}</a>
+  <p v-else-if="state.status === 'failed'" role="alert">Upload failed: {{ state.error }}</p>
+</template>
+```
+
+```ts
+// useUpload.ts: a ref plus the pure reducer. `dispatch` is the only writer.
+export function useUpload() {
+  const state = shallowRef<UploadState>({ status: 'idle' });
+  function dispatch(event: UploadEvent) {
+    state.value = uploadReducer(state.value, event);
+  }
+  return { state, dispatch };
+}
+```
+
+For a compile-time exhaustiveness check in the template, map each status to a component in a `Record<UploadState['status'], Component>` (a missing key is a type error) and render it with `<component :is="views[state.status]" v-bind="state" />`. A `shallowRef` replaced immutably, as here, matches how the reducer works; a deep `reactive` object would let code mutate a state in place and bypass the transitions.
+
+> [!NOTE]
+> A non-serializable `AbortController` in component state is fine for local state. In Pinia with devtools or SSR hydration it will not serialize; keep controllers in a plain `Map` keyed by upload id.
+:::
 
 ### When to reach for XState
 
@@ -544,6 +630,7 @@ minutes: 18
 > [!TLDR]
 > Use `ComponentProps<'button'>` / `ComponentPropsWithoutRef` to extend native elements, `Omit` what you override, and pass the rest through. Make list-like components **generic** so `onSelect` knows the item type. Polymorphic `as` components are useful for design systems but expensive to type and to check; many teams prefer an `asChild`/slot pattern instead. In React 19, `ref` is a normal prop, so `forwardRef` is no longer required.
 
+:::react
 ### Extending native elements
 
 ```tsx
@@ -629,6 +716,148 @@ The component merges its props and ref into its single child via `cloneElement`/
 
 - **"How do you type a component that accepts either `href` or `onClick`?"** A union of prop shapes with a discriminator (`{ href: string } | { onClick: () => void; href?: never }`), rendering `<a>` or `<button>` accordingly. This keeps semantics correct.
 - **"Typing context without `undefined` checks everywhere?"** Create the context as `createContext<Value | null>(null)` and a `useX()` hook that throws a clear error outside the provider; consumers get `Value`.
+:::
+
+:::angular
+### Typing components in Angular
+
+Angular's types live in the component class: inputs, outputs and models are typed signals, and templates are type-checked when `strictTemplates` is on (turn it on).
+
+```ts
+@Component({
+  selector: 'button[appButton]', // extends the native element: an attribute selector on <button>
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'btn', '[class]': '"btn-" + variant()', '[attr.type]': 'type()' },
+  template: `<ng-content />`,
+})
+export class Button {
+  readonly variant = input<'primary' | 'secondary'>('secondary');
+  readonly type = input<'button' | 'submit'>('button'); // defaulting to "button" prevents accidental form submits
+}
+```
+
+```html
+<button appButton variant="primary" (click)="save()" [disabled]="busy()" aria-label="Save">Save</button>
+```
+
+Because the component *is* the native `<button>`, every native attribute, listener and `aria-*` just works with no prop forwarding. This attribute-selector technique is Angular's answer to `ComponentProps<'button'>`.
+
+### Generic components
+
+```ts
+@Component({
+  selector: 'app-listbox',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NgTemplateOutlet],
+  template: `
+    <ul role="listbox">
+      @for (item of items(); track getKey()(item)) {
+        <li role="option" [attr.aria-selected]="false" (click)="selected.emit(item)">
+          <ng-container [ngTemplateOutlet]="itemTemplate()" [ngTemplateOutletContext]="{ $implicit: item }" />
+        </li>
+      }
+    </ul>
+  `,
+})
+export class Listbox<T> {
+  readonly items = input.required<readonly T[]>();
+  readonly getKey = input.required<(item: T) => string>();
+  readonly itemTemplate = contentChild.required<TemplateRef<{ $implicit: T }>>(TemplateRef);
+  readonly selected = output<T>();
+}
+```
+
+```html
+<app-listbox [items]="users()" [getKey]="userKey" (selected)="openProfile($event.id)">
+  <ng-template let-user>{{ user.name }}</ng-template>
+</app-listbox>
+<!-- `$event` is inferred as User; `let-user` is typed through a context guard if you add one -->
+```
+
+Inference works because the generic class parameter is inferred from the bound `items`. The template context for `let-user` is untyped unless you add a `static ngTemplateContextGuard` to a small directive on the `ng-template`; mention it as the known sharp edge.
+
+### Polymorphism and composition
+
+Angular rarely needs `as`: because a directive or attribute-selector component can sit on any element, the consumer picks the element (`<a appButton>` or `<button appButton>`). For the "wrap my child and add behavior" case (`asChild`), use an attribute directive applied to the consumer's element, with `hostDirectives` to compose behaviors.
+
+### Follow-ups (Angular)
+
+- **"Accept either `href` or `(click)`?"** Two selectors (`a[appButton]`, `button[appButton]`), or one component whose template branches with `@if`; a union of input shapes is not expressible, so the selector split keeps the semantics correct.
+- **"Typing context without `undefined` checks?"** An `InjectionToken<Value>` with `inject(TOKEN)`; a factory that throws when it is not provided gives consumers a plain `Value`.
+- **`input.required`** turns a missing binding into a compile error under `strictTemplates`, the closest thing to required props.
+:::
+
+:::vue
+### Typing components in Vue
+
+With `<script setup lang="ts">`, `defineProps`, `defineEmits`, `defineSlots` and `defineModel` derive their runtime declarations from your types, and `vue-tsc` type-checks templates. Run it in CI.
+
+```vue
+<!-- Button.vue -->
+<script setup lang="ts">
+import type { ButtonHTMLAttributes } from 'vue';
+
+interface Props extends /* @vue-ignore */ Omit<ButtonHTMLAttributes, 'type'> {
+  variant?: 'primary' | 'secondary';
+  type?: 'button' | 'submit';
+}
+
+withDefaults(defineProps<Props>(), { variant: 'secondary', type: 'button' }); // "button" prevents accidental form submits
+</script>
+
+<template>
+  <button :type="type" :class="['btn', `btn-${variant}`]"><slot /></button>
+</template>
+```
+
+Attributes you did not declare (`aria-*`, `disabled`, `class`, listeners) fall through to the root element automatically, so there is no prop forwarding to write. `ButtonHTMLAttributes` gives consumers autocomplete and checking for them.
+
+### Generic components
+
+```vue
+<!-- Listbox.vue -->
+<script setup lang="ts" generic="T">
+defineProps<{ items: readonly T[]; getKey: (item: T) => string }>();
+const emit = defineEmits<{ select: [item: T] }>();
+defineSlots<{ item(props: { item: T }): unknown }>();
+</script>
+
+<template>
+  <ul role="listbox">
+    <li v-for="item in items" :key="getKey(item)" role="option" :aria-selected="false" @click="emit('select', item)">
+      <slot name="item" :item="item" />
+    </li>
+  </ul>
+</template>
+```
+
+```vue
+<Listbox :items="users" :get-key="(u) => u.id" @select="(u) => openProfile(u.id)">
+  <template #item="{ item }">{{ item.name }}</template>
+</Listbox>
+<!-- `u` and `item` are both inferred as User -->
+```
+
+### Polymorphism and composition
+
+A typed `as` prop is a plain union passed to `<component :is="as">`. It is simpler than the React version because attribute fallthrough already forwards everything, but the same semantics warning applies (`as="button"` does not give button behavior to a `div`).
+
+```vue
+<script setup lang="ts">
+withDefaults(defineProps<{ as?: 'span' | 'label' | 'a'; tone?: 'default' | 'muted' }>(), { as: 'span', tone: 'default' });
+</script>
+
+<template><component :is="as" :data-tone="tone"><slot /></component></template>
+```
+
+For the `asChild` idea, render the slot and merge props onto it: Reka UI's `Primitive`/`asChild` does exactly this, and is the usual choice in Vue design systems.
+
+### Follow-ups (Vue)
+
+- **"Accept either `href` or `@click`?"** A discriminated union of props can be expressed with `defineProps<A | B>()` (Vue 3.3+), and the component renders `<a>` or `<button>` accordingly.
+- **"Typing provide/inject without `undefined` checks?"** An `InjectionKey<Value>` plus a `useX()` that throws when `inject` returns `undefined`; consumers get `Value`.
+- **Typed events and models**: `defineEmits<{ select: [item: T] }>()` checks both the emit call and the listener in templates.
+:::
 
 ### References
 

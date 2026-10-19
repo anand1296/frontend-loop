@@ -97,6 +97,7 @@ minutes: 12
 > [!TLDR]
 > In a multi-page site the browser resets focus on navigation and screen readers announce the new page; SPAs must do this themselves. On route change: update `document.title`, move focus to the main heading (or main region) with `tabIndex={-1}`, and optionally announce via a live region. For modals: focus inside on open, return focus to the trigger on close. When the focused element disappears (deleted row, closed menu), move focus to a logical neighbor. Provide a skip link to the main content.
 
+:::react
 ### Route change handling
 
 ```tsx
@@ -118,6 +119,82 @@ function RouteFocus({ title }: { title: string }) {
 ```
 
 Don't move focus on the very first load (users expect to start at the top), and don't move it for in-page query changes like filtering (announce results instead).
+:::
+
+:::angular
+### Route change handling (Angular)
+
+Angular's `TitleStrategy` handles `document.title` from route data, and a router event drives focus. Skip the first navigation, and only move focus for real page changes.
+
+```ts
+@Injectable({ providedIn: 'root' })
+export class PageTitleStrategy extends TitleStrategy {
+  private readonly title = inject(Title);
+  override updateTitle(snapshot: RouterStateSnapshot): void {
+    const page = this.buildTitle(snapshot); // from `title: 'Orders'` in the route definition
+    this.title.setTitle(page ? `${page} · Acme` : 'Acme');
+  }
+}
+// providers: [{ provide: TitleStrategy, useClass: PageTitleStrategy }]
+```
+
+```ts
+@Component({
+  selector: 'app-shell',
+  template: `
+    <a class="skip-link" href="#main">Skip to content</a>
+    <main #main id="main" tabindex="-1"><router-outlet /></main>
+  `,
+})
+export class Shell {
+  constructor() {
+    const router = inject(Router);
+    const injector = inject(Injector);
+    const main = viewChild.required<ElementRef<HTMLElement>>('main');
+    let first = true;
+    router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd), takeUntilDestroyed())
+      .subscribe(() => {
+        if (first) {
+          first = false; // users expect to start at the top on the first load
+          return;
+        }
+        // After the new view has rendered, focus its heading (falling back to the main region).
+        afterNextRender(() => (document.querySelector<HTMLElement>('main h1') ?? main().nativeElement).focus(), { injector });
+      });
+  }
+}
+```
+
+Give each page's `<h1>` `tabindex="-1"` so it can receive programmatic focus. Do not move focus for in-page query-param changes such as filtering; announce the results instead (see the live-regions question). Angular's CDK `FocusMonitor` and `LiveAnnouncer` cover the supporting pieces.
+:::
+
+:::vue
+### Route change handling (Vue)
+
+Use a router hook and wait for the DOM to update before focusing. Skip the first navigation, and only move focus for real page changes.
+
+```ts
+// main.ts (or a router plugin)
+router.afterEach(async (to, from, failure) => {
+  document.title = `${String(to.meta.title ?? 'Home')} · Acme`;
+  if (failure || from === START_LOCATION) return; // users expect to start at the top on the first load
+  await nextTick(); // the new view has rendered
+  const target = document.querySelector<HTMLElement>('main h1') ?? document.getElementById('main');
+  target?.focus();
+});
+```
+
+```vue
+<!-- App.vue -->
+<template>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <main id="main" tabindex="-1"><RouterView /></main>
+</template>
+```
+
+Give each page's `<h1>` `tabindex="-1"` so it can receive programmatic focus. Do not move focus for in-page query-param changes such as filtering; announce the results instead (see the live-regions question). With `<Transition mode="out-in">`, wait for the enter hook (`@after-enter`) rather than `nextTick`, or focus lands on the outgoing page. In Nuxt, the `page:finish` hook (or a plugin using `useRouter().afterEach`) is the equivalent place.
+:::
 
 ### Deletions
 
@@ -171,6 +248,7 @@ minutes: 15
 > [!TLDR]
 > Composite widgets (tabs, menus, toolbars, listboxes, grids, trees) should be **one Tab stop**, with arrow keys moving within them. Two techniques: **roving tabindex** (the active item has `tabIndex=0`, the rest `-1`, and DOM focus moves between items) and **`aria-activedescendant`** (DOM focus stays on a container or input, which points at the active item by id). Use roving tabindex for most widgets; use activedescendant when focus must stay in an input (combobox) or items are virtualized.
 
+:::react
 ### Roving tabindex hook
 
 ```tsx
@@ -216,6 +294,134 @@ function Toolbar() {
   );
 }
 ```
+:::
+
+:::angular
+### Roving tabindex directive (Angular)
+
+Angular models this as a container directive that finds its items with content queries; items declare themselves with a second directive. The CDK's `FocusKeyManager` (and `ListKeyManager`) already implements both techniques, so in production you use it; the version below shows what it does.
+
+```ts
+@Directive({
+  selector: '[appRovingItem]',
+  host: {
+    '[attr.tabindex]': 'active() ? 0 : -1',
+    '(focus)': 'onFocus()',
+  },
+})
+export class RovingItem {
+  protected readonly group = inject(RovingGroup);
+  readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  protected readonly active = computed(() => this.group.active() === this);
+
+  protected onFocus(): void {
+    this.group.activate(this);
+  }
+}
+
+@Directive({
+  selector: '[appRovingGroup]',
+  host: { '(keydown)': 'onKeyDown($event)' },
+})
+export class RovingGroup {
+  readonly orientation = input<'horizontal' | 'vertical'>('horizontal');
+  readonly loop = input(true);
+  private readonly items = contentChildren(RovingItem, { descendants: true });
+  readonly active = signal<RovingItem | null>(null);
+
+  activate(item: RovingItem): void {
+    this.active.set(item);
+  }
+
+  protected onKeyDown(event: KeyboardEvent): void {
+    const items = this.items();
+    const index = items.findIndex((item) => item === (this.active() ?? items[0]));
+    const horizontal = this.orientation() === 'horizontal';
+    const [prev, next] = horizontal ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown'];
+    let target: number;
+    if (event.key === next) target = index + 1;
+    else if (event.key === prev) target = index - 1;
+    else if (event.key === 'Home') target = 0;
+    else if (event.key === 'End') target = items.length - 1;
+    else return;
+    event.preventDefault();
+    const clamped = this.loop() ? (target + items.length) % items.length : Math.max(0, Math.min(items.length - 1, target));
+    items[clamped]?.element.focus();
+  }
+}
+```
+
+```html
+<div role="toolbar" aria-label="Formatting" appRovingGroup>
+  <button appRovingItem aria-pressed="false">Bold</button>
+  <button appRovingItem aria-pressed="false">Italic</button>
+  <button appRovingItem aria-pressed="false">Underline</button>
+</div>
+```
+
+One subtlety: until the first focus, no item is "active", so the first item should carry `tabindex="0"`. In the CDK, `FocusKeyManager.withWrap().withHomeAndEnd()` and `ActiveDescendantKeyManager` (for `aria-activedescendant`) give you the two techniques with tested edge cases.
+:::
+
+:::vue
+### Roving tabindex composable (Vue)
+
+```ts
+// useRovingFocus.ts
+import { ref, type ComponentPublicInstance } from 'vue';
+
+export function useRovingFocus(count: () => number, { orientation = 'horizontal', loop = true } = {}) {
+  const active = ref(0);
+  const items: (HTMLElement | null)[] = [];
+
+  function move(next: number) {
+    const total = count();
+    const clamped = loop ? (next + total) % total : Math.max(0, Math.min(total - 1, next));
+    active.value = clamped;
+    items[clamped]?.focus();
+  }
+
+  function itemProps(index: number) {
+    return {
+      ref: (el: Element | ComponentPublicInstance | null) => {
+        items[index] = el as HTMLElement | null;
+      },
+      tabindex: index === active.value ? 0 : -1,
+      onFocus: () => (active.value = index),
+      onKeydown: (event: KeyboardEvent) => {
+        const prev = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
+        const next = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
+        if (event.key === next) move(index + 1);
+        else if (event.key === prev) move(index - 1);
+        else if (event.key === 'Home') move(0);
+        else if (event.key === 'End') move(count() - 1);
+        else return;
+        event.preventDefault();
+      },
+    };
+  }
+
+  return { active, itemProps };
+}
+```
+
+```vue
+<script setup lang="ts">
+import { useRovingFocus } from './useRovingFocus';
+
+const { itemProps } = useRovingFocus(() => 3);
+</script>
+
+<template>
+  <div role="toolbar" aria-label="Formatting">
+    <button v-bind="itemProps(0)" aria-pressed="false">Bold</button>
+    <button v-bind="itemProps(1)" aria-pressed="false">Italic</button>
+    <button v-bind="itemProps(2)" aria-pressed="false">Underline</button>
+  </div>
+</template>
+```
+
+`v-bind` with an object merges the handlers and `ref` with anything you add in the template, and the keyboard handler stays in one place. For virtualized or input-anchored widgets, the `aria-activedescendant` variant is the same state (`active`) rendered as an `id` reference on the container instead of moving DOM focus. Libraries such as Reka UI (`RovingFocusGroup`) or VueUse's `useFocus` and `useActiveElement` cover the common cases.
+:::
 
 ### Which keys for which widget (APG)
 
@@ -260,6 +466,7 @@ minutes: 10
 > [!TLDR]
 > Screen readers don't notice DOM changes unless told. A **live region** (`aria-live="polite"`, `role="status"`, or `role="alert"` for urgent messages) announces content inserted into it. The region must **already exist** in the DOM before the content changes; inject text into it rather than mounting a new region with text. Keep messages short, don't announce on every keystroke, and don't put interactive content (Undo buttons) only in a toast that disappears.
 
+:::react
 ### A global announcer
 
 ```tsx
@@ -290,6 +497,108 @@ export const useAnnounce = () => useContext(AnnouncerContext);
 const announce = useAnnounce();
 announce(`${results.length} results for "${query}"`);
 ```
+:::
+
+:::angular
+### A global announcer (Angular)
+
+The CDK ships this as `LiveAnnouncer`: it creates one visually hidden live region at the end of `<body>` when first used and writes into it. Inject it wherever you need to announce.
+
+```ts
+import { LiveAnnouncer } from '@angular/cdk/a11y';
+
+@Component({ /* ... */ })
+export class SearchResults {
+  private readonly announcer = inject(LiveAnnouncer);
+
+  constructor() {
+    // Announce after the results settle, not on every keystroke.
+    toObservable(this.results).pipe(debounceTime(400), takeUntilDestroyed()).subscribe((results) => {
+      this.announcer.announce(`${results.length} results for "${this.query()}"`, 'polite');
+    });
+  }
+
+  protected failed(message: string): void {
+    this.announcer.announce(message, 'assertive');
+  }
+}
+```
+
+If you want the same thing without the CDK, a root service owning two always-present regions is the same idea:
+
+```ts
+@Injectable({ providedIn: 'root' })
+export class Announcer {
+  readonly polite = signal('');
+  readonly assertive = signal('');
+
+  announce(message: string, urgency: 'polite' | 'assertive' = 'polite'): void {
+    const target = urgency === 'polite' ? this.polite : this.assertive;
+    target.set(''); // clear first so repeating the same message is announced again
+    requestAnimationFrame(() => target.set(message));
+  }
+}
+
+@Component({
+  selector: 'app-announcer',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcer.polite() }}</div>
+    <div class="sr-only" role="alert" aria-live="assertive" aria-atomic="true">{{ announcer.assertive() }}</div>
+  `,
+})
+export class AnnouncerComponent {
+  protected readonly announcer = inject(Announcer);
+}
+```
+
+Render `<app-announcer />` once in the root template, so the regions exist before any message is written. Angular Material's `MatSnackBar` announces its text through `LiveAnnouncer`; the toast guidance below still applies.
+:::
+
+:::vue
+### A global announcer (Vue)
+
+A module-level composable keeps the messages in shared refs, and one component rendered at the app root owns the two live regions, which therefore exist before any message is written.
+
+```ts
+// useAnnounce.ts
+import { ref } from 'vue';
+
+const polite = ref('');
+const assertive = ref('');
+
+export function useAnnounce() {
+  function announce(message: string, urgency: 'polite' | 'assertive' = 'polite') {
+    const target = urgency === 'polite' ? polite : assertive;
+    target.value = ''; // clear first so repeating the same message is announced again
+    requestAnimationFrame(() => (target.value = message));
+  }
+  return { announce };
+}
+
+export { polite as politeMessage, assertive as assertiveMessage };
+```
+
+```vue
+<!-- Announcer.vue: render once in App.vue -->
+<script setup lang="ts">
+import { assertiveMessage, politeMessage } from './useAnnounce';
+</script>
+
+<template>
+  <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ politeMessage }}</div>
+  <div class="sr-only" role="alert" aria-live="assertive" aria-atomic="true">{{ assertiveMessage }}</div>
+</template>
+```
+
+```ts
+// usage: announce after the results settle, not on every keystroke
+const { announce } = useAnnounce();
+watchDebounced(results, (list) => announce(`${list.length} results for "${query.value}"`), { debounce: 400 }); // VueUse
+```
+
+Module-level refs are shared across requests in SSR; in Nuxt, hold them in `useState` instead so one visitor's message is never rendered for another.
+:::
 
 ### Toasts done right
 
@@ -347,6 +656,7 @@ minutes: 12
 </form>
 ```
 
+:::react
 ### Error summary pattern
 
 ```tsx
@@ -368,6 +678,92 @@ function ErrorSummary({ errors }: { errors: { field: string; message: string }[]
   );
 }
 ```
+:::
+
+:::angular
+### Error summary pattern (Angular)
+
+```ts
+@Component({
+  selector: 'app-error-summary',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (errors().length > 0) {
+      <div #summary tabindex="-1" role="alert" aria-labelledby="error-summary-title" class="error-summary">
+        <h2 id="error-summary-title">There is a problem</h2>
+        <ul>
+          @for (error of errors(); track error.field) {
+            <li><a [href]="'#' + error.field" (click)="focusField($event, error.field)">{{ error.message }}</a></li>
+          }
+        </ul>
+      </div>
+    }
+  `,
+})
+export class ErrorSummaryComponent {
+  readonly errors = input.required<{ field: string; message: string }[]>();
+  private readonly summary = viewChild<ElementRef<HTMLElement>>('summary');
+  private readonly injector = inject(Injector);
+
+  constructor() {
+    // Focus the summary after a failed submit, i.e. whenever a new error list arrives.
+    effect(() => {
+      this.errors();
+      afterNextRender(() => this.summary()?.nativeElement.focus(), { injector: this.injector });
+    });
+  }
+
+  protected focusField(event: Event, field: string): void {
+    event.preventDefault(); // the router would otherwise treat the hash as navigation
+    document.getElementById(field)?.focus();
+  }
+}
+```
+
+With Reactive Forms, build the list in the submit handler from the controls: `Object.entries(form.controls).filter(([, c]) => c.invalid).map(([field, c]) => ({ field, message: messageFor(c) }))`. Link each input to its hint and error with `[attr.aria-describedby]`, and set `[attr.aria-invalid]` from the control state, as in the markup above.
+:::
+
+:::vue
+### Error summary pattern (Vue)
+
+```vue
+<!-- ErrorSummary.vue -->
+<script setup lang="ts">
+import { nextTick, useTemplateRef, watch } from 'vue';
+
+const props = defineProps<{ errors: { field: string; message: string }[] }>();
+const summary = useTemplateRef<HTMLElement>('summary');
+
+// Focus the summary after a failed submit, i.e. whenever a new error list arrives.
+watch(
+  () => props.errors,
+  async (errors) => {
+    if (errors.length === 0) return;
+    await nextTick();
+    summary.value?.focus();
+  },
+);
+
+function focusField(event: Event, field: string) {
+  event.preventDefault(); // the router would otherwise treat the hash as navigation
+  document.getElementById(field)?.focus();
+}
+</script>
+
+<template>
+  <div v-if="errors.length > 0" ref="summary" tabindex="-1" role="alert" aria-labelledby="error-summary-title" class="error-summary">
+    <h2 id="error-summary-title">There is a problem</h2>
+    <ul>
+      <li v-for="error in errors" :key="error.field">
+        <a :href="`#${error.field}`" @click="focusField($event, error.field)">{{ error.message }}</a>
+      </li>
+    </ul>
+  </div>
+</template>
+```
+
+With vee-validate, build the list from `errors` (a record of field to message) in the invalid-submit callback, and wire each input's `aria-describedby` and `aria-invalid` from the field's `errorMessage`, as in the markup above.
+:::
 
 ### Error message quality
 

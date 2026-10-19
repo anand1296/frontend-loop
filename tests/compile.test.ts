@@ -46,6 +46,28 @@ describe('compileContent', () => {
     assert.match(answers.sec?.['q-one'] ?? '', /callout-tldr/);
   });
 
+  it('wraps :::framework containers in data-fw sections and keeps the rest shared', () => {
+    const source = answer() + '\n\nShared text.\n\n:::angular\n### Angular\n\n```ts\nconst x = 1;\n```\n:::\n\n:::vue\nVue only.\n:::\n';
+    const { answers } = compileContent([file(`## What is it?\n${source}`)]);
+    const html = answers.sec?.['q-one'] ?? '';
+    assert.match(html, /<section class="fw" data-fw="angular">\n<h3>Angular<\/h3>[\s\S]*<figure class="code">[\s\S]*<\/section>/);
+    assert.match(html, /<section class="fw" data-fw="vue">\n<p>Vue only\.<\/p>\n<\/section>/);
+    assert.match(html, /<p>Shared text\.<\/p>/);
+    assert.equal((html.match(/<section/g) ?? []).length, 2);
+  });
+
+  it('ignores ::: inside code fences and rejects misuse', () => {
+    const fenced = answer() + '\n\n```text\n:::angular\n```\n';
+    const html = compileContent([file(`## What is it?\n${fenced}`)]).answers.sec?.['q-one'] ?? '';
+    assert.ok(!html.includes('<section'));
+    const bad = (extra: string, message: RegExp): void =>
+      assert.throws(() => compileContent([file(`## What is it?\n${answer()}\n\n${extra}`)]), message);
+    bad(':::svelte\ntext\n:::', /unknown framework/);
+    bad(':::vue\ntext', /never closed/);
+    bad(':::', /closes nothing/);
+    bad(':::vue\n:::react\ntext\n:::\n:::', /cannot nest/);
+  });
+
   it('renders an optional leading [!PROMPT] callout without disturbing the summary', () => {
     const prompt = '> [!PROMPT]\n> Build a **thing**.\n>\n> **Test cases**\n> - `a()` returns 1\n> - `b()` throws\n\n';
     const source = answer().replace('> [!TLDR]', `${prompt}> [!TLDR]`);

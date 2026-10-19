@@ -171,6 +171,7 @@ minutes: 15
 > [!TLDR]
 > Split by **route** first (each page loads only its code), then by **interaction** (heavy features loaded on demand: editors, charts, PDF export), and keep a stable **vendor/framework** chunk so it stays cached across deploys. Measure with a bundle analyzer, hunt tree-shaking failures (CommonJS deps, side-effectful barrels, whole-library imports), set per-entry size budgets in CI, and prefetch the next likely chunk on intent so splitting doesn't make navigation slower.
 
+:::react
 ### Splitting points in React
 
 ```tsx
@@ -196,6 +197,80 @@ function ReportActions() {
   );
 }
 ```
+:::
+
+:::angular
+### Splitting points in Angular
+
+Route-level splitting is built in with `loadComponent` and `loadChildren`; interaction-level splitting is `@defer`, which compiles the deferred block's dependencies into a separate chunk.
+
+```ts
+export const routes: Routes = [
+  { path: 'reports', loadComponent: () => import('./pages/reports.page').then((m) => m.ReportsPage) },
+  { path: 'admin', loadChildren: () => import('./admin/admin.routes').then((m) => m.ADMIN_ROUTES) },
+];
+
+// Warm the chunks users are likely to need next, after the app is stable.
+provideRouter(routes, withPreloading(QuicklinkStrategy)); // or a custom PreloadingStrategy
+```
+
+```html
+<button (click)="editing.set(true)" (pointerenter)="prefetchEditor()">Edit chart</button>
+
+@if (editing()) {
+  @defer {
+    <app-chart-editor />
+  } @loading (minimum 200ms) {
+    <app-editor-skeleton />
+  }
+}
+```
+
+Or let the template express the whole policy: `@defer (on interaction; prefetch on hover) { <app-chart-editor /> } @placeholder { <button>Edit chart</button> }` loads the code on click and prefetches it on hover, with no component code.
+
+Only standalone components, directives and pipes referenced inside the block are split out; anything also used outside it stays in the main bundle, so check with `ng build --stats-json` and a bundle analyzer. Build budgets live in `angular.json` (`"budgets": [{ "type": "initial", "maximumWarning": "500kB", "maximumError": "1MB" }]`) and fail the build, which complements `size-limit` PR comments.
+:::
+
+:::vue
+### Splitting points in Vue
+
+Dynamic `import()` is the split point everywhere. Vue Router routes take it directly; `defineAsyncComponent` wraps a component with loading and error states.
+
+```ts
+// Route-level
+const routes = [
+  { path: '/reports', component: () => import('./pages/ReportsPage.vue') },
+  { path: '/admin', component: () => import('./pages/AdminPage.vue') },
+];
+
+// Interaction-level
+import { defineAsyncComponent } from 'vue';
+
+const loadChartEditor = () => import('./features/chart-editor/ChartEditor.vue');
+const ChartEditor = defineAsyncComponent({
+  loader: loadChartEditor,
+  loadingComponent: EditorSkeleton,
+  delay: 200, // do not flash the skeleton for fast loads
+  errorComponent: EditorLoadError,
+  timeout: 10_000,
+});
+```
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue';
+
+const editing = ref(false);
+</script>
+
+<template>
+  <button type="button" @pointerenter="loadChartEditor" @click="editing = true">Edit chart</button>
+  <ChartEditor v-if="editing" />
+</template>
+```
+
+Calling the loader on `pointerenter` warms the chunk (imports are cached, so the later render is instant). Vue 3.5's lazy hydration (`hydrate: hydrateOnVisible()` and friends on `defineAsyncComponent`) defers hydration work in SSR apps. With Vite, control chunking with `build.rollupOptions.output.manualChunks` (a `vendor-vue` chunk for `vue`, `vue-router` and `pinia`), and check results with `rollup-plugin-visualizer`.
+:::
 
 ### Where bytes hide
 
@@ -338,6 +413,7 @@ minutes: 15
 6. **Re-measure** the same scenario. Keep before/after numbers for the PR description.
 7. **Guard**: an interaction benchmark in CI (Playwright + `performance.measure`) or React's `<Profiler onRender>` logging in a test environment.
 
+:::react
 ### `<Profiler>` in code
 
 ```tsx
@@ -362,6 +438,73 @@ Profiling builds (`react-dom/profiling`) can ship to a small percentage of produ
 - Rows not memoized, or memoized but receiving inline callbacks.
 - Expensive derived data recomputed in render without memoization.
 - Layout thrashing from many components measuring themselves.
+:::
+
+:::angular
+### Profiling in Angular
+
+Use the same loop; swap step 4 for **Angular DevTools**. Its Profiler records change-detection cycles: for each cycle you see which components were checked, how long each took, and which cycles were triggered by what. Pair it with the browser Performance panel to tell checking time apart from layout and your own code.
+
+```ts
+// A production-safe probe: time from the input event to the next completed render.
+export class FilterBox {
+  private readonly injector = inject(Injector);
+  protected readonly query = signal('');
+
+  protected onInput(value: string): void {
+    performance.mark('filter:start');
+    this.query.set(value);
+    afterNextRender(
+      () => {
+        performance.mark('filter:end');
+        performance.measure('filter', 'filter:start', 'filter:end');
+      },
+      { injector: this.injector },
+    );
+  }
+}
+```
+
+A Playwright test that reads `performance.getEntriesByName('filter')` guards the interaction in CI.
+
+### Common findings (Angular)
+
+- Components still on `Default` change detection, so every event checks the whole tree.
+- Method calls and getters in templates that run on every check (use `computed`, pure pipes or properties).
+- `@for` with `track $index` or no stable identity, recreating rows on every update.
+- An input mutated in place under `OnPush`, so a developer "fixes" it with `markForCheck` or by detaching `OnPush`.
+- A zone.js-patched high-frequency source (`mousemove`, `scroll`, timers, WebSocket) triggering global change detection: move it outside the zone, or go zoneless with signals.
+- Large `computed` chains over huge arrays recomputed because a broad signal is read.
+:::
+
+:::vue
+### Profiling in Vue
+
+Use the same loop; swap step 4 for **Vue DevTools**. Its performance timeline shows component render and patch times, and "highlight updates" flashes components as they re-render. To find out *why* something re-rendered, use the render hooks.
+
+```ts
+// Development only: log which reactive dependency triggered a re-render.
+onRenderTriggered((event) => {
+  console.log('re-rendered because', event.key, event.type, event.target);
+});
+```
+
+```ts
+// Component init/render/patch User Timing marks, visible in the browser Performance panel.
+app.config.performance = true; // development builds only
+```
+
+For a production-safe probe, wrap the interaction with `performance.mark`/`measure` (and an `await nextTick()` so the measure ends after the DOM update). A Playwright test that asserts on the measure guards it in CI.
+
+### Common findings (Vue)
+
+- A `ref` holding thousands of objects (deep proxies); use `shallowRef` and replace the array.
+- Props that are new objects or arrays on every render, making children re-render.
+- Derived data computed in a method or inline in the template instead of a `computed`.
+- A giant `reactive` store object read by many components; split it, or select with `storeToRefs`.
+- Missing or unstable `:key` in `v-for`, and `v-for` with an index key on reorderable lists.
+- Heavy watchers (`deep: true` on large trees) that run on every change.
+:::
 
 ### References
 
@@ -449,6 +592,7 @@ minutes: 12
 | Progressive rendering | Streaming SSR, Suspense boundaries | Avoid popcorn layouts |
 | View transitions | Page/route changes, list → detail | Reduced-motion; don't block on long animations |
 
+:::react
 ### Prefetch on intent
 
 ```tsx
@@ -483,6 +627,97 @@ function navigateWithTransition(update: () => void) {
 ```
 
 Cross-document view transitions (`@view-transition { navigation: auto; }`) work for MPAs in supporting browsers.
+:::
+
+:::angular
+### Prefetch on intent (Angular)
+
+```ts
+@Component({
+  selector: 'app-product-link',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink],
+  template: `
+    <a [routerLink]="['/products', id()]" (pointerenter)="prefetch()" (focus)="prefetch()"><ng-content /></a>
+  `,
+})
+export class ProductLink {
+  readonly id = input.required<string>();
+  private readonly queryClient = inject(QueryClient);
+
+  protected prefetch(): void {
+    void this.queryClient.prefetchQuery({ queryKey: ['product', this.id()], queryFn: () => fetchProduct(this.id()), staleTime: 60_000 });
+    void import('./pages/product.page'); // code too
+  }
+}
+```
+
+For the code half, route-level preloading (`withPreloading`) or `@defer (prefetch on hover)` does it declaratively. For the data half without a query library, a route `resolve` or a service that caches an `Observable` with `shareReplay` serves the same purpose.
+
+### View transitions (Angular)
+
+The router supports them as a feature, including the reduced-motion and unsupported-browser fallbacks:
+
+```ts
+provideRouter(routes, withViewTransitions({ skipInitialTransition: true }));
+```
+
+```css
+.product-image { view-transition-name: product-hero; } /* morphs between list thumbnail and detail hero */
+```
+
+Pass `onViewTransitionCreated` to `withViewTransitions` to skip the animation for certain navigations (for example, when `prefers-reduced-motion: reduce` matches). The router awaits the new route's rendering inside the transition callback, which is the Angular counterpart of React's `flushSync` requirement that the DOM be updated synchronously within it.
+:::
+
+:::vue
+### Prefetch on intent (Vue)
+
+```vue
+<script setup lang="ts">
+import { useQueryClient } from '@tanstack/vue-query';
+
+const props = defineProps<{ id: string }>();
+const queryClient = useQueryClient();
+
+function prefetch() {
+  void queryClient.prefetchQuery({ queryKey: ['product', props.id], queryFn: () => fetchProduct(props.id), staleTime: 60_000 });
+  void import('./pages/ProductPage.vue'); // code too
+}
+</script>
+
+<template>
+  <RouterLink :to="`/products/${id}`" @pointerenter="prefetch" @focus="prefetch"><slot /></RouterLink>
+</template>
+```
+
+Nuxt does the code half for you: `<NuxtLink>` prefetches a link's chunk when it enters the viewport, and `prefetchComponents` / `useAsyncData` cover components and data.
+
+### View transitions (Vue)
+
+```ts
+import { nextTick } from 'vue';
+
+function navigateWithTransition(update: () => void | Promise<void>) {
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    void update();
+    return;
+  }
+  // The DOM must be fully updated inside the callback: wait for the route change and Vue's flush.
+  document.startViewTransition(async () => {
+    await update();
+    await nextTick();
+  });
+}
+
+// usage: navigateWithTransition(() => router.push('/products/42'))
+```
+
+```css
+.product-image { view-transition-name: product-hero; } /* morphs between list thumbnail and detail hero */
+```
+
+Vue's own `<Transition>` and `<TransitionGroup>` are for enter/leave and list animations inside a page; the View Transitions API is for whole-view changes. In Nuxt, enable `experimental.viewTransition`.
+:::
 
 ### Timing thresholds worth quoting
 

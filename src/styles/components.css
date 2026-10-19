@@ -1379,3 +1379,39 @@ button.action-card:hover {
 .settings-message.is-error {
   background: var(--due-soft);
 }
+
+/* ---------- Framework variants (React / Angular / Vue) ---------- */
+.fw-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.fw-switch-label {
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.fw-switch-note {
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+/* Without JS-chosen framework (no data-fw-active) every variant stays visible. */
+.fw-scope[data-fw-active] .fw {
+  display: none;
+}
+
+.fw-scope[data-fw-active='react'] .fw[data-fw='react'],
+.fw-scope[data-fw-active='angular'] .fw[data-fw='angular'],
+.fw-scope[data-fw-active='vue'] .fw[data-fw='vue'] {
+  display: block;
+}
+
+.settings-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}

@@ -100,3 +100,37 @@ func TestEveryLanguageHighlights(t *testing.T) {
 		}
 	}
 }
+
+func TestFrameworkContainers(t *testing.T) {
+	html := render(t, "Shared.\n\n:::angular\n### Angular\n\n```ts\nconst x = 1;\n```\n:::\n\n:::vue\nVue only.\n:::\n").HTML
+	for _, want := range []string{
+		"<section class=\"fw\" data-fw=\"angular\">\n<h3>Angular</h3>",
+		"<section class=\"fw\" data-fw=\"vue\">\n<p>Vue only.</p>\n</section>",
+		"<p>Shared.</p>",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("missing %q in %s", want, html)
+		}
+	}
+	if strings.Count(html, "<section") != 2 || strings.Count(html, "</section>") != 2 {
+		t.Errorf("section balance: %s", html)
+	}
+	if got := render(t, "```text\n:::angular\n```\n").HTML; strings.Contains(got, "<section") {
+		t.Errorf("::: inside a fence must stay text: %s", got)
+	}
+}
+
+func TestFrameworkContainerErrors(t *testing.T) {
+	r := New()
+	for source, want := range map[string]string{
+		":::svelte\ntext\n:::":          "unknown framework",
+		":::vue\ntext":                  "never closed",
+		":::":                            "closes nothing",
+		":::vue\n:::react\ntext\n:::\n:::": "cannot nest",
+	} {
+		_, err := r.Render(source)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: got %v, want %q", source, err, want)
+		}
+	}
+}

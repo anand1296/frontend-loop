@@ -50,6 +50,7 @@ interface ComboboxState<T> {
 }
 ```
 
+:::react
 ### Data hook: debounced, cancellable, cached, latest-wins
 
 ```tsx
@@ -214,6 +215,355 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 ```
+:::
+
+:::angular
+### Data flow and component (Angular)
+
+RxJS gives you debounce, cancellation and latest-wins as operators: `switchMap` unsubscribes from the previous inner observable, and the teardown function aborts the request. Signals hold the UI state.
+
+```ts
+import { ChangeDetectionStrategy, Component, input, linkedSignal, output, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { Observable, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+
+interface Option {
+  id: string;
+  label: string;
+}
+type Status = 'idle' | 'loading' | 'success' | 'error';
+interface SearchState {
+  status: Status;
+  results: Option[];
+}
+type SearchFn = (query: string, signal: AbortSignal) => Promise<Option[]>;
+
+const IDLE: SearchState = { status: 'idle', results: [] };
+let nextId = 0;
+
+@Component({
+  selector: 'app-typeahead',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <label [for]="id + '-input'">{{ label() }}</label>
+    <input
+      [id]="id + '-input'"
+      role="combobox"
+      autocomplete="off"
+      aria-autocomplete="list"
+      [attr.aria-expanded]="showList()"
+      [attr.aria-controls]="id + '-listbox'"
+      [attr.aria-activedescendant]="showList() && activeIndex() >= 0 ? id + '-opt-' + activeIndex() : null"
+      [value]="query()"
+      (input)="onInput($event)"
+      (keydown)="onKeyDown($event)"
+      (blur)="open.set(false)"
+    />
+    <div role="status" aria-live="polite" class="sr-only">
+      {{ state().status === 'success' && showList() ? state().results.length + ' results' : '' }}
+    </div>
+    @if (showList()) {
+      <ul [id]="id + '-listbox'" role="listbox" [attr.aria-label]="label()">
+        @if (state().status === 'loading' && state().results.length === 0) {
+          <li role="presentation">Searching…</li>
+        }
+        @if (state().status === 'error') {
+          <li role="presentation">Search failed. Keep typing to retry.</li>
+        }
+        @if (state().status === 'success' && state().results.length === 0) {
+          <li role="presentation">No matches</li>
+        }
+        @for (option of state().results; track option.id; let i = $index) {
+          <li
+            [id]="id + '-opt-' + i"
+            role="option"
+            [attr.aria-selected]="i === activeIndex()"
+            (mousedown)="$event.preventDefault()"
+            (click)="select(option)"
+            (mousemove)="activeIndex.set(i)"
+          >
+            @let parts = split(option.label);
+            {{ parts[0] }}<mark>{{ parts[1] }}</mark>{{ parts[2] }}
+          </li>
+        }
+      </ul>
+    }
+  `,
+})
+export class TypeaheadComponent {
+  readonly label = input.required<string>();
+  readonly search = input.required<SearchFn>();
+  readonly selected = output<Option>();
+
+  protected readonly id = `typeahead-${nextId++}`;
+  protected readonly query = signal('');
+  protected readonly open = signal(false);
+  private readonly cache = new Map<string, Option[]>();
+
+  protected readonly state = toSignal(
+    toObservable(this.query).pipe(
+      map((q) => q.trim()),
+      debounceTime(250),
+      distinctUntilChanged(),
+      switchMap((q) => this.run(q)), // a new query unsubscribes the old one: no stale writes
+    ),
+    { initialValue: IDLE },
+  );
+
+  // Resets to -1 whenever the results change, with no effect() needed.
+  protected readonly activeIndex = linkedSignal({ source: () => this.state().results, computation: () => -1 });
+  protected readonly showList = () => this.open() && this.query().trim().length >= 2;
+
+  private run(q: string): Observable<SearchState> {
+    if (q.length < 2) return of(IDLE);
+    const cached = this.cache.get(q);
+    if (cached) return of({ status: 'success', results: cached });
+    return new Observable<SearchState>((subscriber) => {
+      const controller = new AbortController();
+      subscriber.next({ status: 'loading', results: [] });
+      this.search()(q, controller.signal).then(
+        (results) => {
+          this.cache.set(q, results);
+          subscriber.next({ status: 'success', results });
+          subscriber.complete();
+        },
+        () => {
+          if (controller.signal.aborted) return;
+          subscriber.next({ status: 'error', results: [] });
+          subscriber.complete();
+        },
+      );
+      return () => controller.abort(); // runs when switchMap drops this request
+    });
+  }
+
+  protected onInput(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+    this.open.set(true);
+  }
+
+  protected onKeyDown(event: KeyboardEvent): void {
+    const count = this.state().results.length;
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        this.open.set(true);
+        this.activeIndex.update((i) => (count === 0 ? -1 : (i + 1) % count));
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        this.activeIndex.update((i) => (count === 0 ? -1 : (i - 1 + count) % count));
+        break;
+      case 'Enter': {
+        const option = this.state().results[this.activeIndex()];
+        if (this.open() && option) {
+          event.preventDefault();
+          this.select(option);
+        }
+        break;
+      }
+      case 'Escape':
+        if (this.open()) this.open.set(false);
+        else this.query.set('');
+        break;
+    }
+  }
+
+  protected select(option: Option): void {
+    this.query.set(option.label);
+    this.open.set(false);
+    this.selected.emit(option);
+  }
+
+  protected split(text: string): [string, string, string] {
+    const q = this.query().trim().toLowerCase();
+    const start = q ? text.toLowerCase().indexOf(q) : -1;
+    return start === -1 ? [text, '', ''] : [text.slice(0, start), text.slice(start, start + q.length), text.slice(start + q.length)];
+  }
+}
+```
+
+Angular notes for the interview:
+
+- `switchMap` is the whole race-safety story; say so. `exhaustMap` or `mergeMap` here would be the classic bug.
+- Interpolation (`{{ }}`) escapes text, so the highlight is safe without `innerHTML`; never reach for `[innerHTML]` with raw labels.
+- `OnPush` plus signals means only the list re-renders on keystrokes; `track option.id` keeps DOM nodes stable.
+- In a real app you would likely use Angular CDK's `CdkListbox` or Angular Aria for the pattern instead of hand-rolling it.
+:::
+
+:::vue
+### Data composable and component (Vue)
+
+A watcher with `onWatcherCleanup` (Vue 3.5+) is the direct counterpart of the React effect cleanup: it runs before the next run, so it clears the timer and aborts the request.
+
+```ts
+// useSearch.ts
+import { onWatcherCleanup, shallowRef, watch, type Ref } from 'vue';
+
+export type Status = 'idle' | 'loading' | 'success' | 'error';
+
+export function useSearch<T>(
+  query: Ref<string>,
+  search: (q: string, signal: AbortSignal) => Promise<T[]>,
+  { minChars = 2, delay = 250 } = {},
+) {
+  const state = shallowRef<{ status: Status; results: T[] }>({ status: 'idle', results: [] });
+  const cache = new Map<string, T[]>();
+
+  watch(
+    query,
+    (value) => {
+      const q = value.trim();
+      if (q.length < minChars) {
+        state.value = { status: 'idle', results: [] };
+        return;
+      }
+      const cached = cache.get(q);
+      if (cached) {
+        state.value = { status: 'success', results: cached };
+        return;
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(async () => {
+        state.value = { status: 'loading', results: state.value.results };
+        try {
+          const results = await search(q, controller.signal);
+          cache.set(q, results);
+          state.value = { status: 'success', results };
+        } catch {
+          if (!controller.signal.aborted) state.value = { status: 'error', results: [] };
+        }
+      }, delay);
+      onWatcherCleanup(() => {
+        clearTimeout(timer);
+        controller.abort(); // a newer query supersedes this one: no stale writes
+      });
+    },
+    { immediate: true },
+  );
+
+  return state;
+}
+```
+
+```vue
+<!-- Typeahead.vue -->
+<script setup lang="ts" generic="T extends { id: string; label: string }">
+import { computed, ref, useId, watch } from 'vue';
+import Highlight from './Highlight.vue';
+import { useSearch } from './useSearch';
+
+const props = defineProps<{
+  label: string;
+  search: (q: string, signal: AbortSignal) => Promise<T[]>;
+}>();
+const emit = defineEmits<{ select: [option: T] }>();
+
+const id = useId();
+const query = ref('');
+const open = ref(false);
+const activeIndex = ref(-1);
+const state = useSearch(query, props.search);
+const results = computed(() => state.value.results);
+
+watch(results, () => (activeIndex.value = -1)); // reset the highlight when results change
+
+const showList = computed(() => open.value && query.value.trim().length >= 2);
+const activeId = computed(() => (showList.value && activeIndex.value >= 0 ? `${id}-opt-${activeIndex.value}` : undefined));
+
+function select(option: T) {
+  query.value = option.label;
+  open.value = false;
+  emit('select', option);
+}
+
+function onKeyDown(event: KeyboardEvent) {
+  const count = results.value.length;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    open.value = true;
+    activeIndex.value = count === 0 ? -1 : (activeIndex.value + 1) % count;
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    activeIndex.value = count === 0 ? -1 : (activeIndex.value - 1 + count) % count;
+  } else if (event.key === 'Enter') {
+    const option = results.value[activeIndex.value];
+    if (open.value && option) {
+      event.preventDefault();
+      select(option);
+    }
+  } else if (event.key === 'Escape') {
+    if (open.value) open.value = false;
+    else query.value = '';
+  }
+}
+
+</script>
+
+<template>
+  <div class="typeahead">
+    <label :for="`${id}-input`">{{ label }}</label>
+    <input
+      :id="`${id}-input`"
+      v-model="query"
+      role="combobox"
+      autocomplete="off"
+      aria-autocomplete="list"
+      :aria-expanded="showList"
+      :aria-controls="`${id}-listbox`"
+      :aria-activedescendant="activeId"
+      @input="open = true"
+      @keydown="onKeyDown"
+      @blur="open = false"
+    />
+    <div role="status" aria-live="polite" class="sr-only">
+      {{ state.status === 'success' && showList ? `${results.length} results` : '' }}
+    </div>
+    <ul v-if="showList" :id="`${id}-listbox`" role="listbox" :aria-label="label">
+      <li v-if="state.status === 'loading' && results.length === 0" role="presentation">Searching…</li>
+      <li v-if="state.status === 'error'" role="presentation">Search failed. Keep typing to retry.</li>
+      <li v-if="state.status === 'success' && results.length === 0" role="presentation">No matches</li>
+      <li
+        v-for="(option, index) in results"
+        :id="`${id}-opt-${index}`"
+        :key="option.id"
+        role="option"
+        :aria-selected="index === activeIndex"
+        @mousedown.prevent
+        @click="select(option)"
+        @mousemove="activeIndex = index"
+      >
+        <Highlight :text="option.label" :query="query" />
+      </li>
+    </ul>
+  </div>
+</template>
+```
+
+```vue
+<!-- Highlight.vue -->
+<script setup lang="ts">
+import { computed } from 'vue';
+
+const props = defineProps<{ text: string; query: string }>();
+const parts = computed(() => {
+  const q = props.query.trim().toLowerCase();
+  const start = q ? props.text.toLowerCase().indexOf(q) : -1;
+  if (start === -1) return [props.text, '', ''] as const;
+  return [props.text.slice(0, start), props.text.slice(start, start + q.length), props.text.slice(start + q.length)] as const;
+});
+</script>
+
+<template>{{ parts[0] }}<mark>{{ parts[1] }}</mark>{{ parts[2] }}</template>
+```
+
+Vue notes for the interview:
+
+- `@mousedown.prevent` is the modifier form of the React `preventDefault` trick that keeps focus in the input.
+- Mustache interpolation escapes text, so the highlight is safe; avoid `v-html` with labels.
+- `shallowRef` for results avoids deep-reactive proxies on potentially large arrays; replacing the whole value is what triggers updates.
+- `watch(results, …)` is the one place a watcher is justified: resetting derived UI state that cannot be computed.
+:::
 
 ### Details that separate senior answers
 
@@ -258,6 +608,7 @@ minutes: 40
 > [!TLDR]
 > Render only the rows intersecting the viewport (plus overscan) inside a spacer whose height equals the total list height; position rows with `transform: translateY`. For fixed heights, the visible range is `floor(scrollTop / rowHeight)` arithmetic. For variable heights, keep a prefix-sum of measured (or estimated) heights and binary-search the start index; measure rendered rows with `ResizeObserver` and correct the offsets. Watch out for scroll anchoring when measured heights differ from estimates.
 
+:::react
 ### Fixed-height version
 
 ```tsx
@@ -305,6 +656,172 @@ export function VirtualList<T>({ items, rowHeight, height, overscan = 6, renderR
 ```
 
 Complexity: O(visible) DOM nodes and render work per scroll, independent of list size. Scroll events fire at frame rate; the state update is cheap because only ~30 rows render.
+:::
+
+:::angular
+### Fixed-height version (Angular)
+
+Signals make the window a `computed`; only the visible rows are in the template. Rows come from a projected `ng-template`, the Angular counterpart of the React `renderRow` prop.
+
+```ts
+import { ChangeDetectionStrategy, Component, TemplateRef, computed, contentChild, input, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+
+interface RowContext<T> {
+  $implicit: T;
+  index: number;
+}
+
+@Component({
+  selector: 'app-virtual-list',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NgTemplateOutlet],
+  template: `
+    <div
+      class="viewport"
+      role="list"
+      [attr.aria-rowcount]="items().length"
+      [style.height.px]="height()"
+      (scroll)="onScroll($event)"
+    >
+      <div class="spacer" [style.height.px]="total()">
+        @for (row of rows(); track row.key) {
+          <div
+            class="row"
+            role="listitem"
+            [style.height.px]="rowHeight()"
+            [style.transform]="'translateY(' + row.index * rowHeight() + 'px)'"
+          >
+            <ng-container [ngTemplateOutlet]="rowTemplate()" [ngTemplateOutletContext]="{ $implicit: row.item, index: row.index }" />
+          </div>
+        }
+      </div>
+    </div>
+  `,
+  styles: `
+    .viewport { overflow-y: auto; position: relative; contain: strict; }
+    .spacer { position: relative; }
+    .row { position: absolute; top: 0; left: 0; right: 0; }
+  `,
+})
+export class VirtualListComponent<T> {
+  readonly items = input.required<readonly T[]>();
+  readonly rowHeight = input.required<number>();
+  readonly height = input.required<number>();
+  readonly overscan = input(6);
+  readonly getKey = input.required<(item: T, index: number) => string>();
+  protected readonly rowTemplate = contentChild.required<TemplateRef<RowContext<T>>>(TemplateRef);
+
+  private readonly scrollTop = signal(0);
+  protected readonly total = computed(() => this.items().length * this.rowHeight());
+
+  protected readonly rows = computed(() => {
+    const items = this.items();
+    const rowHeight = this.rowHeight();
+    const start = Math.max(0, Math.floor(this.scrollTop() / rowHeight) - this.overscan());
+    const end = Math.min(items.length, Math.ceil((this.scrollTop() + this.height()) / rowHeight) + this.overscan());
+    const getKey = this.getKey();
+    const visible: { item: T; index: number; key: string }[] = [];
+    for (let index = start; index < end; index++) {
+      const item = items[index];
+      if (item !== undefined) visible.push({ item, index, key: getKey(item, index) });
+    }
+    return visible;
+  });
+
+  protected onScroll(event: Event): void {
+    this.scrollTop.set((event.currentTarget as HTMLElement).scrollTop);
+  }
+}
+```
+
+```html
+<app-virtual-list [items]="people()" [rowHeight]="48" [height]="480" [getKey]="personKey">
+  <ng-template let-person let-i="index">{{ i + 1 }}. {{ person.name }}</ng-template>
+</app-virtual-list>
+```
+
+Complexity is the same: O(visible) work per scroll. The `computed` only recomputes when the scroll offset or inputs change, and `OnPush` skips the rest of the tree. In production you would reach for the CDK's `cdk-virtual-scroll-viewport` with `*cdkVirtualFor`, which also handles variable sizes through a custom strategy.
+:::
+
+:::vue
+### Fixed-height version (Vue)
+
+A scoped slot is the Vue counterpart of the React `renderRow` prop. The visible window is a `computed`, so it only re-evaluates when the scroll offset or props change.
+
+```vue
+<!-- VirtualList.vue -->
+<script setup lang="ts" generic="T">
+import { computed, ref } from 'vue';
+
+const props = withDefaults(
+  defineProps<{
+    items: readonly T[];
+    rowHeight: number;
+    height: number;
+    overscan?: number;
+    getKey: (item: T, index: number) => string;
+  }>(),
+  { overscan: 6 },
+);
+
+defineSlots<{ default(props: { item: T; index: number }): unknown }>();
+
+const scrollTop = ref(0);
+const total = computed(() => props.items.length * props.rowHeight);
+
+const rows = computed(() => {
+  const start = Math.max(0, Math.floor(scrollTop.value / props.rowHeight) - props.overscan);
+  const end = Math.min(props.items.length, Math.ceil((scrollTop.value + props.height) / props.rowHeight) + props.overscan);
+  const visible: { item: T; index: number; key: string }[] = [];
+  for (let index = start; index < end; index++) {
+    const item = props.items[index];
+    if (item !== undefined) visible.push({ item, index, key: props.getKey(item, index) });
+  }
+  return visible;
+});
+
+function onScroll(event: Event) {
+  scrollTop.value = (event.currentTarget as HTMLElement).scrollTop;
+}
+</script>
+
+<template>
+  <div
+    role="list"
+    :aria-rowcount="items.length"
+    :style="{ height: `${height}px`, overflowY: 'auto', position: 'relative', contain: 'strict' }"
+    @scroll.passive="onScroll"
+  >
+    <div :style="{ height: `${total}px`, position: 'relative' }">
+      <div
+        v-for="row in rows"
+        :key="row.key"
+        role="listitem"
+        :style="{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: `${rowHeight}px`,
+          transform: `translateY(${row.index * rowHeight}px)`,
+        }"
+      >
+        <slot :item="row.item" :index="row.index" />
+      </div>
+    </div>
+  </div>
+</template>
+```
+
+```vue
+<VirtualList :items="people" :row-height="48" :height="480" :get-key="(p) => p.id" v-slot="{ item, index }">
+  {{ index + 1 }}. {{ item.name }}
+</VirtualList>
+```
+
+Two Vue-specific points. Pass big arrays as a `shallowRef` (or `markRaw`) so Vue does not wrap ten thousand objects in deep proxies. And `@scroll.passive` tells the browser the handler never calls `preventDefault`, so scrolling is not blocked. The ready-made option is `vue-virtual-scroller` or TanStack Virtual's Vue adapter.
+:::
 
 ### Variable heights: prefix sums + binary search
 
@@ -399,6 +916,7 @@ minutes: 30
 > [!TLDR]
 > A modal must: move focus inside on open (first field or the dialog itself), **trap** focus while open, close on Escape (and optionally backdrop click), make the background inert to keyboard and screen readers, prevent background scroll, restore focus to the trigger on close, and have an accessible name. The native `<dialog>` element with `showModal()` gives you top-layer rendering, inert background, focus handling and Escape for free; build on it rather than reimplementing.
 
+:::react
 ### On top of `<dialog>`
 
 ```tsx
@@ -452,6 +970,117 @@ export function Modal({ open, onClose, title, children, initialFocusRef }: Modal
 
 > [!NOTE]
 > The effect here is legitimate: it synchronizes React state with an imperative browser API (`showModal`/`close`) and owns cleanup (scroll lock, focus restore).
+:::
+
+:::angular
+### On top of `<dialog>` (Angular)
+
+```ts
+import { ChangeDetectionStrategy, Component, ElementRef, effect, input, output, viewChild } from '@angular/core';
+
+let nextId = 0;
+
+@Component({
+  selector: 'app-modal',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <dialog
+      #dialog
+      class="modal"
+      [attr.aria-labelledby]="titleId"
+      (close)="closed.emit()"
+      (click)="onClick($event)"
+    >
+      <div class="modal-body">
+        <h2 [id]="titleId">{{ title() }}</h2>
+        <ng-content />
+        <button type="button" (click)="closed.emit()" aria-label="Close">×</button>
+      </div>
+    </dialog>
+  `,
+})
+export class ModalComponent {
+  readonly open = input.required<boolean>();
+  readonly title = input.required<string>();
+  readonly closed = output<void>(); // Escape, the close button and the backdrop all end here
+
+  protected readonly titleId = `modal-title-${nextId++}`;
+  private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
+
+  constructor() {
+    effect((onCleanup) => {
+      const dialog = this.dialogRef().nativeElement;
+      if (this.open() && !dialog.open) {
+        const previouslyFocused = document.activeElement;
+        dialog.showModal(); // top layer, inert background, Escape fires "cancel"
+        document.documentElement.style.overflow = 'hidden'; // scroll lock
+        onCleanup(() => {
+          document.documentElement.style.overflow = '';
+          if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus(); // restore focus
+        });
+      } else if (!this.open() && dialog.open) {
+        dialog.close();
+      }
+    });
+  }
+
+  protected onClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closed.emit(); // backdrop click
+  }
+}
+```
+
+Put `autofocus` on the element that should receive initial focus; `showModal()` honours it, which replaces the React `initialFocusRef`.
+
+> [!NOTE]
+> `effect` is the right tool here for the same reason `useEffect` is in React: it synchronizes component state with an imperative browser API (`showModal`/`close`) and owns the cleanup. For the trap-it-yourself version below, the Angular CDK's `FocusTrap` and `Dialog` service implement the whole pattern, including the modal stack.
+:::
+
+:::vue
+### On top of `<dialog>` (Vue)
+
+```vue
+<!-- Modal.vue -->
+<script setup lang="ts">
+import { useId, useTemplateRef, watchPostEffect } from 'vue';
+
+const props = defineProps<{ open: boolean; title: string }>();
+const emit = defineEmits<{ close: [] }>(); // Escape, the close button and the backdrop all end here
+
+const dialog = useTemplateRef<HTMLDialogElement>('dialog');
+const titleId = useId();
+
+// Post-flush so the <dialog> element exists; the cleanup runs before the next run and on unmount.
+watchPostEffect((onCleanup) => {
+  const el = dialog.value;
+  if (!el) return;
+  if (props.open && !el.open) {
+    const previouslyFocused = document.activeElement;
+    el.showModal(); // top layer, inert background, Escape fires "cancel"
+    document.documentElement.style.overflow = 'hidden'; // scroll lock
+    onCleanup(() => {
+      document.documentElement.style.overflow = '';
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus(); // restore focus
+    });
+  } else if (!props.open && el.open) {
+    el.close();
+  }
+});
+</script>
+
+<template>
+  <dialog ref="dialog" class="modal" :aria-labelledby="titleId" @close="emit('close')" @click.self="emit('close')">
+    <div class="modal-body">
+      <h2 :id="titleId">{{ title }}</h2>
+      <slot />
+      <button type="button" aria-label="Close" @click="emit('close')">×</button>
+    </div>
+  </dialog>
+</template>
+```
+
+`@click.self` is the idiomatic backdrop check (the React version compares `target` and `currentTarget` by hand). Put `autofocus` on the element that should get initial focus. The watcher is legitimate for the same reason `useEffect` is: it synchronizes component state with an imperative browser API and owns the cleanup. For the hand-built trap version below, libraries such as `focus-trap` (with `@vueuse/integrations`) or Headless UI's `Dialog` for Vue cover the pattern, including stacking.
+:::
 
 ### If you can't use `<dialog>` (or are asked to build the trap)
 
@@ -517,6 +1146,7 @@ minutes: 25
 > [!TLDR]
 > Model the value as one string, render N single-character inputs, and handle: typing (write char, move focus right), backspace (clear current or move left and clear), arrow keys, **paste of the full code** into any box, and mobile **SMS autofill** (`autocomplete="one-time-code"`, which delivers the whole code into one input). Accessibility: a group label, per-input labels like "Digit 3 of 6", and `inputmode="numeric"`. Many teams now prefer a single input with visual boxes, which makes autofill, paste and screen readers trivial.
 
+:::react
 ### Implementation (multi-input)
 
 ```tsx
@@ -600,6 +1230,215 @@ export function OtpInput({ length = 6, value, onChange, onComplete }: OtpInputPr
 ```
 
 One input means native paste, autofill, undo, IME and screen-reader behavior all work. If design insists on boxes, draw them with CSS behind a single input.
+:::
+
+:::angular
+### Implementation, multi-input (Angular)
+
+```ts
+import { ChangeDetectionStrategy, Component, ElementRef, computed, input, model, output, viewChildren } from '@angular/core';
+
+let nextId = 0;
+
+@Component({
+  selector: 'app-otp-input',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="otp" role="group" [attr.aria-labelledby]="id + '-label'">
+      <span [id]="id + '-label'">Verification code</span>
+      @for (box of boxes(); track box) {
+        <input
+          #cell
+          [attr.aria-label]="'Digit ' + (box + 1) + ' of ' + length()"
+          inputmode="numeric"
+          [attr.autocomplete]="box === 0 ? 'one-time-code' : 'off'"
+          [attr.maxlength]="box === 0 ? length() : 1"
+          [value]="value()[box] ?? ''"
+          (focus)="selectAll($event)"
+          (input)="onInput($event, box)"
+          (paste)="onPaste($event, box)"
+          (keydown)="onKeyDown($event, box)"
+        />
+      }
+    </div>
+  `,
+})
+export class OtpInputComponent {
+  readonly length = input(6);
+  readonly value = model(''); // two-way: [(value)]="code"
+  readonly completed = output<string>();
+
+  protected readonly id = `otp-${nextId++}`;
+  protected readonly boxes = computed(() => Array.from({ length: this.length() }, (_, i) => i));
+  private readonly inputs = viewChildren<ElementRef<HTMLInputElement>>('cell');
+
+  private focusAt(index: number): void {
+    const clamped = Math.max(0, Math.min(this.length() - 1, index));
+    this.inputs()[clamped]?.nativeElement.focus();
+  }
+
+  private commit(next: string): void {
+    const clean = next.replace(/\D/g, '').slice(0, this.length());
+    this.value.set(clean);
+    if (clean.length === this.length()) this.completed.emit(clean);
+  }
+
+  private writeAt(index: number, chars: string): void {
+    const digits = chars.replace(/\D/g, '');
+    if (!digits) return;
+    const current = this.value();
+    // The value is contiguous (no holes), so typing past the end writes at the end.
+    const start = Math.min(index, current.length);
+    this.commit(current.slice(0, start) + digits + current.slice(start + digits.length));
+    this.focusAt(start + digits.length);
+  }
+
+  protected selectAll(event: FocusEvent): void {
+    (event.target as HTMLInputElement).select();
+  }
+
+  protected onInput(event: Event, index: number): void {
+    const el = event.target as HTMLInputElement;
+    this.writeAt(index, el.value);
+    el.value = this.value()[index] ?? ''; // a rejected character must not stay in the box
+  }
+
+  protected onPaste(event: ClipboardEvent, index: number): void {
+    event.preventDefault();
+    this.writeAt(index, event.clipboardData?.getData('text') ?? '');
+  }
+
+  protected onKeyDown(event: KeyboardEvent, index: number): void {
+    const current = this.value();
+    if (event.key === 'Backspace') {
+      event.preventDefault();
+      if (current[index]) this.commit(current.slice(0, index) + current.slice(index + 1));
+      else if (index > 0) {
+        this.commit(current.slice(0, index - 1) + current.slice(index));
+        this.focusAt(index - 1);
+      }
+    } else if (event.key === 'ArrowLeft') this.focusAt(index - 1);
+    else if (event.key === 'ArrowRight') this.focusAt(index + 1);
+  }
+}
+```
+
+Notes: `model()` gives the parent two-way binding with `[(value)]`; it replaces the React `value`/`onChange` pair. The explicit `el.value = …` reset in `onInput` is Angular's version of what React's controlled inputs do for free: with signals, an unchanged `value()` does not re-render the binding, so a rejected letter would otherwise stay visible. For forms integration, wrap it as a `ControlValueAccessor` so it works with `FormControl`.
+
+### The single-input alternative
+
+```html
+<input
+  aria-label="Verification code"
+  inputmode="numeric"
+  autocomplete="one-time-code"
+  pattern="\d{6}"
+  maxlength="6"
+  class="otp-single"
+  [formControl]="code"
+/>
+```
+
+One input means native paste, autofill, undo, IME and screen-reader behavior all work, and it plugs straight into Reactive Forms. If design insists on boxes, draw them with CSS behind a single input.
+:::
+
+:::vue
+### Implementation, multi-input (Vue)
+
+```vue
+<!-- OtpInput.vue -->
+<script setup lang="ts">
+import { useId } from 'vue';
+
+const props = withDefaults(defineProps<{ length?: number }>(), { length: 6 });
+const value = defineModel<string>({ default: '' }); // v-model on the component
+const emit = defineEmits<{ complete: [code: string] }>();
+
+const groupId = useId();
+const inputs: (HTMLInputElement | null)[] = []; // function refs keep index order in v-for
+
+function focusAt(index: number) {
+  inputs[Math.max(0, Math.min(props.length - 1, index))]?.focus();
+}
+
+function commit(next: string) {
+  const clean = next.replace(/\D/g, '').slice(0, props.length);
+  value.value = clean;
+  if (clean.length === props.length) emit('complete', clean);
+}
+
+function writeAt(index: number, chars: string) {
+  const digits = chars.replace(/\D/g, '');
+  if (!digits) return;
+  // The value is contiguous (no holes), so typing past the end writes at the end.
+  const start = Math.min(index, value.value.length);
+  commit(value.value.slice(0, start) + digits + value.value.slice(start + digits.length));
+  focusAt(start + digits.length);
+}
+
+function onInput(event: Event, index: number) {
+  const el = event.target as HTMLInputElement;
+  writeAt(index, el.value);
+  el.value = value.value[index] ?? ''; // a rejected character must not stay in the box
+}
+
+function onPaste(event: ClipboardEvent, index: number) {
+  writeAt(index, event.clipboardData?.getData('text') ?? '');
+}
+
+function onKeyDown(event: KeyboardEvent, index: number) {
+  const current = value.value;
+  if (event.key === 'Backspace') {
+    event.preventDefault();
+    if (current[index]) commit(current.slice(0, index) + current.slice(index + 1));
+    else if (index > 0) {
+      commit(current.slice(0, index - 1) + current.slice(index));
+      focusAt(index - 1);
+    }
+  } else if (event.key === 'ArrowLeft') focusAt(index - 1);
+  else if (event.key === 'ArrowRight') focusAt(index + 1);
+}
+</script>
+
+<template>
+  <div class="otp" role="group" :aria-labelledby="`${groupId}-label`">
+    <span :id="`${groupId}-label`">Verification code</span>
+    <input
+      v-for="index in length"
+      :key="index"
+      :ref="(el) => (inputs[index - 1] = el as HTMLInputElement | null)"
+      :aria-label="`Digit ${index} of ${length}`"
+      inputmode="numeric"
+      :autocomplete="index === 1 ? 'one-time-code' : 'off'"
+      :maxlength="index === 1 ? length : 1"
+      :value="value[index - 1] ?? ''"
+      @focus="($event.target as HTMLInputElement).select()"
+      @input="onInput($event, index - 1)"
+      @paste.prevent="onPaste($event, index - 1)"
+      @keydown="onKeyDown($event, index - 1)"
+    />
+  </div>
+</template>
+```
+
+Notes: `defineModel` (Vue 3.4+) replaces the `modelValue` prop plus `update:modelValue` emit boilerplate. Use function refs for `v-for` inputs, because template-ref arrays do not guarantee source order. The `el.value = …` reset does the job React's controlled inputs do automatically: when the bound value does not change, Vue does not patch the DOM, so a rejected letter would otherwise stay in the box.
+
+### The single-input alternative
+
+```vue
+<input
+  v-model="code"
+  aria-label="Verification code"
+  inputmode="numeric"
+  autocomplete="one-time-code"
+  pattern="\d{6}"
+  maxlength="6"
+  class="otp-single"
+/>
+```
+
+One input means native paste, autofill, undo, IME and screen-reader behavior all work. If design insists on boxes, draw them with CSS behind a single input.
+:::
 
 ### Edge cases
 
@@ -747,6 +1586,7 @@ minutes: 35
 > [!TLDR]
 > Use **cursor-based** pagination (stable under inserts), a sentinel element observed by `IntersectionObserver` with a `rootMargin` to prefetch before the user hits the bottom, one in-flight request at a time, deduplication by item id, explicit loading/error/end states, and a "Load more" button as an accessible fallback. Keep long feeds fast with virtualization, and restore scroll position when the user navigates back.
 
+:::react
 ### Data layer with TanStack Query
 
 ```tsx
@@ -823,6 +1663,216 @@ export function Feed() {
   );
 }
 ```
+:::
+
+:::angular
+### Data layer with TanStack Query (Angular)
+
+`@tanstack/angular-query-experimental` exposes the same options with signals instead of hooks.
+
+```ts
+import { injectInfiniteQuery } from '@tanstack/angular-query-experimental';
+
+interface FeedPage {
+  items: Post[];
+  nextCursor: string | null;
+}
+
+function injectFeed() {
+  return injectInfiniteQuery(() => ({
+    queryKey: ['feed'],
+    queryFn: ({ pageParam, signal }) => fetchFeed(pageParam, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage: FeedPage) => lastPage.nextCursor,
+    staleTime: 30_000,
+  }));
+}
+```
+
+> [!NOTE]
+> `null as string | null` is the documented way to type `initialPageParam` in TanStack Query; it widens a literal rather than claiming something unchecked.
+
+### Sentinel with IntersectionObserver (Angular)
+
+A small attribute directive owns the observer and its cleanup, so any element can become a sentinel.
+
+```ts
+import { DestroyRef, Directive, ElementRef, afterNextRender, inject, input, output } from '@angular/core';
+
+@Directive({ selector: '[appInView]' })
+export class InViewDirective {
+  readonly rootMargin = input('600px 0px');
+  readonly entered = output<void>();
+
+  constructor() {
+    const element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(() => {
+      // Browser only: safe with server-side rendering.
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) this.entered.emit();
+        },
+        { rootMargin: this.rootMargin() },
+      );
+      observer.observe(element);
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
+  }
+}
+```
+
+```ts
+@Component({
+  selector: 'app-feed',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [InViewDirective, PostCardComponent, FeedSkeletonComponent, ErrorStateComponent],
+  template: `
+    @switch (feed.status()) {
+      @case ('pending') {
+        <app-feed-skeleton />
+      }
+      @case ('error') {
+        <app-error-state [error]="feed.error()" />
+      }
+      @default {
+        <section aria-label="Feed" [attr.aria-busy]="feed.isFetchingNextPage()">
+          <ol class="feed">
+            @for (post of posts(); track post.id) {
+              <li><app-post-card [post]="post" /></li>
+            }
+          </ol>
+          @if (feed.hasNextPage()) {
+            <div appInView (entered)="loadMore()">
+              <button type="button" (click)="loadMore()" [disabled]="feed.isFetchingNextPage()">
+                {{ feed.isFetchingNextPage() ? 'Loading…' : 'Load more' }}
+              </button>
+            </div>
+          } @else {
+            <p>You're all caught up.</p>
+          }
+        </section>
+      }
+    }
+  `,
+})
+export class FeedComponent {
+  protected readonly feed = injectFeed();
+
+  // Cursor overlaps happen; dedupe by id.
+  protected readonly posts = computed(() => {
+    const seen = new Set<string>();
+    return (this.feed.data()?.pages ?? []).flatMap((page) => page.items).filter((post) => {
+      if (seen.has(post.id)) return false;
+      seen.add(post.id);
+      return true;
+    });
+  });
+
+  protected loadMore(): void {
+    if (this.feed.hasNextPage() && !this.feed.isFetchingNextPage()) void this.feed.fetchNextPage();
+  }
+}
+```
+
+`track post.id` is required by the `@for` block, which nudges you toward stable identity. Without TanStack Query, the same shape works with an RxJS `scan` over a cursor subject and `exhaustMap` so a second trigger is ignored while a page is loading.
+:::
+
+:::vue
+### Data layer with TanStack Query (Vue)
+
+`@tanstack/vue-query` returns refs, so the template unwraps them automatically.
+
+```ts
+import { useInfiniteQuery } from '@tanstack/vue-query';
+
+interface FeedPage {
+  items: Post[];
+  nextCursor: string | null;
+}
+
+export function useFeed() {
+  return useInfiniteQuery({
+    queryKey: ['feed'],
+    queryFn: ({ pageParam, signal }) => fetchFeed(pageParam, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage: FeedPage) => lastPage.nextCursor,
+    staleTime: 30_000,
+  });
+}
+```
+
+> [!NOTE]
+> `null as string | null` is the documented way to type `initialPageParam` in TanStack Query; it widens a literal rather than claiming something unchecked.
+
+### Sentinel with IntersectionObserver (Vue)
+
+```ts
+// useInView.ts
+import { watchEffect, type Ref } from 'vue';
+
+export function useInView(target: Ref<HTMLElement | null>, onEnter: () => void, rootMargin = '600px 0px') {
+  watchEffect((onCleanup) => {
+    const node = target.value;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onEnter();
+      },
+      { rootMargin },
+    );
+    observer.observe(node);
+    onCleanup(() => observer.disconnect()); // runs when the sentinel unmounts or changes
+  });
+}
+```
+
+```vue
+<!-- Feed.vue -->
+<script setup lang="ts">
+import { computed, useTemplateRef } from 'vue';
+import { useFeed } from './useFeed';
+import { useInView } from './useInView';
+
+const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status, error } = useFeed();
+
+// Cursor overlaps happen; dedupe by id.
+const posts = computed(() => {
+  const seen = new Set<string>();
+  return (data.value?.pages ?? []).flatMap((page) => page.items).filter((post) => {
+    if (seen.has(post.id)) return false;
+    seen.add(post.id);
+    return true;
+  });
+});
+
+function loadMore() {
+  if (hasNextPage.value && !isFetchingNextPage.value) void fetchNextPage();
+}
+
+const sentinel = useTemplateRef<HTMLElement>('sentinel');
+useInView(sentinel, loadMore);
+</script>
+
+<template>
+  <FeedSkeleton v-if="status === 'pending'" />
+  <ErrorState v-else-if="status === 'error'" :error="error" />
+  <section v-else aria-label="Feed" :aria-busy="isFetchingNextPage">
+    <ol class="feed">
+      <li v-for="post in posts" :key="post.id"><PostCard :post="post" /></li>
+    </ol>
+    <div v-if="hasNextPage" ref="sentinel">
+      <button type="button" :disabled="isFetchingNextPage" @click="loadMore">
+        {{ isFetchingNextPage ? 'Loading…' : 'Load more' }}
+      </button>
+    </div>
+    <p v-else>You're all caught up.</p>
+  </section>
+</template>
+```
+
+The template ref is `null` until the sentinel renders (it is behind `v-if`), which is why the observer lives in a `watchEffect` that re-runs when the ref is set or cleared. Because `loadMore` reads current refs when it runs, there is no stale-callback problem and no need for the React "latest ref" trick.
+:::
 
 ### Why cursors, not page numbers
 
@@ -866,6 +1916,7 @@ minutes: 20
 > [!TLDR]
 > Never count ticks. Store a **deadline** (or start time) and compute remaining time from a monotonic clock each time you render: `remaining = deadline - performance.now()`. Timers drift and are throttled in background tabs (to ≥1s, sometimes minutes), so ticks are only a signal to re-render. Align ticks to second boundaries for a stable display, re-sync on `visibilitychange`, and for server-authoritative deadlines (auctions, seat holds), correct for client/server clock offset.
 
+:::react
 ### The hook
 
 ```tsx
@@ -914,6 +1965,134 @@ function Countdown() {
   );
 }
 ```
+:::
+
+:::angular
+### The countdown (Angular)
+
+A function that must run in an injection context (a component field initializer or constructor) plays the role of the hook. State is a signal; cleanup uses `DestroyRef`.
+
+```ts
+import { DestroyRef, afterNextRender, computed, inject, signal } from '@angular/core';
+
+export function injectCountdown(durationMs: number) {
+  const destroyRef = inject(DestroyRef);
+  const deadline = performance.now() + durationMs;
+  const now = signal(performance.now());
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const tick = () => {
+    const current = performance.now();
+    now.set(current);
+    const remaining = deadline - current;
+    if (remaining <= 0) return;
+    // Schedule the next tick at the next whole-second boundary of the remaining time.
+    timer = setTimeout(tick, (remaining % 1000) + 5);
+  };
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') {
+      clearTimeout(timer);
+      tick(); // catch up immediately when the tab comes back
+    }
+  };
+
+  afterNextRender(() => {
+    tick();
+    document.addEventListener('visibilitychange', onVisible);
+  });
+  destroyRef.onDestroy(() => {
+    clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onVisible);
+  });
+
+  const remainingMs = computed(() => Math.max(0, deadline - now()));
+  return { remainingMs, done: computed(() => remainingMs() === 0) };
+}
+
+@Component({
+  selector: 'app-countdown',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <span aria-hidden="true" class="tabular">{{ label() }}</span>
+    <span class="sr-only" aria-live="polite">{{ countdown.done() ? 'Time is up' : '' }}</span>
+  `,
+})
+export class CountdownComponent {
+  protected readonly countdown = injectCountdown(5 * 60_000);
+  protected readonly label = computed(() => {
+    const totalSeconds = Math.ceil(this.countdown.remainingMs() / 1000);
+    return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
+  });
+}
+```
+
+Two Angular-specific points. With zone.js, every `setTimeout` triggers an application-wide change-detection pass, so a ticking timer is a good reason to adopt zoneless change detection (signals schedule only the views that read them), or to run the timers outside the zone. And `afterNextRender` keeps the timers and `document` access out of server-side rendering.
+:::
+
+:::vue
+### The countdown (Vue)
+
+```ts
+// useCountdown.ts
+import { computed, ref, watchEffect, type Ref } from 'vue';
+
+export function useCountdown(durationMs: number, running: Ref<boolean> = ref(true)) {
+  const deadline = performance.now() + durationMs;
+  const now = ref(performance.now());
+
+  watchEffect((onCleanup) => {
+    if (!running.value || typeof document === 'undefined') return; // no timers during SSR
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const current = performance.now();
+      now.value = current;
+      const remaining = deadline - current;
+      if (remaining <= 0) return;
+      // Schedule the next tick at the next whole-second boundary of the remaining time.
+      timer = setTimeout(tick, (remaining % 1000) + 5);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        clearTimeout(timer);
+        tick(); // catch up immediately when the tab comes back
+      }
+    };
+    tick();
+    document.addEventListener('visibilitychange', onVisible);
+    onCleanup(() => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    });
+  });
+
+  const remainingMs = computed(() => Math.max(0, deadline - now.value));
+  return { remainingMs, done: computed(() => remainingMs.value === 0) };
+}
+```
+
+```vue
+<!-- Countdown.vue -->
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useCountdown } from './useCountdown';
+
+const { remainingMs, done } = useCountdown(5 * 60_000);
+const label = computed(() => {
+  const totalSeconds = Math.ceil(remainingMs.value / 1000);
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
+});
+</script>
+
+<template>
+  <div>
+    <span aria-hidden="true" class="tabular">{{ label }}</span>
+    <span class="sr-only" aria-live="polite">{{ done ? 'Time is up' : '' }}</span>
+  </div>
+</template>
+```
+
+The `watchEffect` cleanup replaces the `useEffect` return value. It re-runs when `running` flips, which is how pause and resume work, and it also runs when the component unmounts, so there is no leaked timer or listener.
+:::
 
 ### Why each choice
 

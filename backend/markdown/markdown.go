@@ -96,7 +96,11 @@ var calloutErrorsKey = parser.NewContextKey()
 
 // Render converts one answer. Content errors are returned as *Error.
 func (r *Renderer) Render(source string) (Result, error) {
-	src := []byte(strings.ReplaceAll(source, "\r\n", "\n"))
+	expanded, err := expandFrameworkBlocks(strings.ReplaceAll(source, "\r\n", "\n"))
+	if err != nil {
+		return Result{}, err
+	}
+	src := []byte(expanded)
 	ctx := parser.NewContext()
 	doc := r.md.Parser().Parse(text.NewReader(src), parser.WithContext(ctx))
 	if problems, ok := ctx.Get(calloutErrorsKey).([]string); ok && len(problems) > 0 {
@@ -306,6 +310,13 @@ func (r *nodeRenderer) htmlBlock(w util.BufWriter, source []byte, node ast.Node,
 	}
 	n := node.(*ast.HTMLBlock)
 	lines := n.Lines()
+	if marker := strings.TrimSpace(htmlBlockText(n, source)); fwMarker.MatchString(marker) {
+		_, _ = fmt.Fprintf(w, "<section class=\"fw\" data-fw=\"%s\">\n", fwMarker.FindStringSubmatch(marker)[1])
+		return ast.WalkSkipChildren, nil
+	} else if marker == fwMarkerClose {
+		_, _ = w.WriteString("</section>\n")
+		return ast.WalkSkipChildren, nil
+	}
 	for i := 0; i < lines.Len(); i++ {
 		segment := lines.At(i)
 		_, _ = w.WriteString(html.EscapeString(string(segment.Value(source))))
@@ -460,3 +471,17 @@ func blockText(node ast.Node, source []byte) string {
 }
 
 func plainText(doc ast.Node, source []byte) string { return collapse(blockText(doc, source)) }
+
+// htmlBlockText is the raw text of an HTML block, closure line included.
+func htmlBlockText(n *ast.HTMLBlock, source []byte) string {
+	var b strings.Builder
+	lines := n.Lines()
+	for i := 0; i < lines.Len(); i++ {
+		segment := lines.At(i)
+		b.Write(segment.Value(source))
+	}
+	if n.HasClosure() {
+		b.Write(n.ClosureLine.Value(source))
+	}
+	return b.String()
+}

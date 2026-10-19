@@ -58,6 +58,8 @@ const SNIPPETS: Record<string, string> = {
   'Note callout': '> [!NOTE]\n> ',
   'TypeScript code': '```ts\n\n```',
   'TSX code': '```tsx\n\n```',
+  'Angular variant': ':::angular\n### Angular\n\n:::',
+  'Vue variant': ':::vue\n### Vue\n\n:::',
   Table: '| Option | When | Cost |\n| --- | --- | --- |\n|  |  |  |',
   Heading: '### ',
 };
@@ -418,7 +420,7 @@ export function QuestionEditor({ content, questionId, defaultSectionId, onClose,
           <p>
             Start with a <code>&gt; [!TLDR]</code> callout (required to publish). Use <code>###</code> for headings (<code>##</code> would start a
             new question in the repository format). Callouts: TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL. Code fences: ts, tsx, js, jsx,
-            html, css, bash, json, yaml, graphql, diff, http, text. Raw HTML is shown as text; links must be https or #ids.
+            html, vue, css, bash, json, yaml, graphql, diff, http, text. Framework variants: wrap React, Angular or Vue material in <code>:::react</code>, <code>:::angular</code> or <code>:::vue</code> … <code>:::</code> on their own lines. Raw HTML is shown as text; links must be https or #ids.
           </p>
         </details>
       </div>

@@ -524,6 +524,7 @@ export const throttle = <A extends unknown[]>(fn: (...args: A) => void, wait: nu
 
 This mirrors lodash's design: one timer that re-arms itself for the remaining time instead of clearing and re-creating a timer on every keystroke.
 
+:::react
 ### React: stable debounced callback with the latest closure
 
 ```tsx
@@ -571,6 +572,116 @@ For search-as-you-type with React Query, debouncing the **query key** (a `useDeb
 - `flush` on Enter/blur so the last input isn't lost.
 - Cancel on unmount (already handled).
 - Clock: `Date.now()` can jump (sleep, clock changes); `performance.now()` is monotonic.
+:::
+
+:::angular
+### Angular: stable debounced callback with the latest closure
+
+The `debounce` function above is framework-free. Angular components are classes, so there is no stale-closure problem: the callback closes over `this`, and signals are read at call time. What you have to add is cleanup.
+
+```ts
+export function injectDebouncedCallback<A extends unknown[]>(
+  callback: (...args: A) => void,
+  wait: number,
+  options?: DebounceOptions,
+): Debounced<A> {
+  const debounced = debounce(callback, wait, options);
+  inject(DestroyRef).onDestroy(() => debounced.cancel()); // no calls after the component is destroyed
+  return debounced;
+}
+
+@Component({
+  selector: 'app-search-box',
+  template: `
+    <input type="search" (input)="search($any($event.target).value)" (keydown.enter)="search.flush()" />
+  `,
+})
+export class SearchBox {
+  readonly query = output<string>();
+  protected readonly search = injectDebouncedCallback((q: string) => this.query.emit(q), 300);
+}
+```
+
+### Debounce the value or the effect?
+
+In an RxJS-first codebase the idiomatic form is an operator, which also gives you `switchMap` cancellation for free:
+
+```ts
+protected readonly term = signal('');
+protected readonly results = toSignal(
+  toObservable(this.term).pipe(
+    debounceTime(300),
+    distinctUntilChanged(),
+    switchMap((q) => this.api.search(q)),
+  ),
+  { initialValue: [] },
+);
+```
+
+`debounceTime` and the function above differ in features: the operator has no `leading`, `maxWait`, `flush` or `cancel`, so use the hand-written function (or `auditTime`/`throttleTime` for throttling) when you need those. Debouncing reduces *network* calls; if rendering a large result is the cost, that is a change-detection problem (`OnPush`, `@for` with `track`, virtual scroll), not a debounce problem.
+
+### Edge cases
+
+- `flush` on Enter or blur so the last input is not lost.
+- Cancel on destroy (handled above).
+- `Date.now()` can jump (sleep, clock changes); `performance.now()` is monotonic.
+:::
+
+:::vue
+### Vue: stable debounced callback with the latest closure
+
+The `debounce` function above is framework-free. In `<script setup>` the function is created once and closes over refs, which are read at call time, so there is no stale-closure problem. What you have to add is cleanup.
+
+```ts
+// useDebouncedCallback.ts
+import { onScopeDispose } from 'vue';
+
+export function useDebouncedCallback<A extends unknown[]>(
+  callback: (...args: A) => void,
+  wait: number,
+  options?: DebounceOptions,
+): Debounced<A> {
+  const debounced = debounce(callback, wait, options);
+  onScopeDispose(() => debounced.cancel()); // no calls after unmount or when the scope stops
+  return debounced;
+}
+```
+
+```vue
+<script setup lang="ts">
+import { useDebouncedCallback } from './useDebouncedCallback';
+
+const emit = defineEmits<{ search: [query: string] }>();
+const search = useDebouncedCallback((q: string) => emit('search', q), 300);
+</script>
+
+<template>
+  <input
+    type="search"
+    @input="search(($event.target as HTMLInputElement).value)"
+    @keydown.enter="search.flush()"
+  />
+</template>
+```
+
+### Debounce the value or the effect?
+
+Debouncing a *ref* is often cleaner than debouncing a callback, and works with computed and watchers:
+
+```ts
+const term = ref('');
+const debouncedTerm = refDebounced(term, 300); // VueUse; also `useDebounceFn` for callbacks
+const { data } = useQuery({ queryKey: ['search', debouncedTerm], queryFn: ({ signal }) => search(debouncedTerm.value, signal) });
+```
+
+Vue's own scheduler already batches reactive updates per tick, which is not debouncing: it will not save you network calls. Use debounce for network and expensive work, and virtualization or `shallowRef` when *rendering* a big result is the cost.
+
+### Edge cases
+
+- `flush` on Enter or blur so the last input is not lost.
+- Cancel on unmount (handled above).
+- `Date.now()` can jump (sleep, clock changes); `performance.now()` is monotonic.
+:::
 
 ### References
 
@@ -982,6 +1093,7 @@ input.addEventListener('input', async () => {
 > [!WARNING]
 > Aborting a `fetch` stops the client from waiting; it doesn't undo a server-side mutation that already started. Never use "cancel the previous POST" as a consistency mechanism for writes; queue writes or use versioned updates (ETags, `If-Match`).
 
+:::react
 ### In React
 
 React Query cancels/ignores automatically by key. With plain effects, the cleanup function is your abort point:
@@ -995,6 +1107,60 @@ useEffect(() => {
   return () => controller.abort();
 }, [id]);
 ```
+:::
+
+:::angular
+### In Angular
+
+RxJS makes the strategy a choice of operator, and `switchMap` implements "latest wins" with cancellation: when a new value arrives it unsubscribes from the previous inner observable, and `HttpClient` aborts the underlying request on unsubscribe.
+
+```ts
+protected readonly userId = signal('1');
+protected readonly user = toSignal(
+  toObservable(this.userId).pipe(switchMap((id) => this.http.get<User>(`/api/users/${id}`))),
+);
+```
+
+The signal-native option is `resource()`, which re-runs its loader when its request signal changes, aborts the previous run through the `abortSignal` it passes in, and ignores stale results:
+
+```ts
+protected readonly user = resource({
+  params: () => ({ id: this.userId() }),
+  loader: ({ params, abortSignal }) => fetchUser(params.id, abortSignal),
+});
+// user.value(), user.isLoading(), user.error(), user.reload()
+```
+
+The other operators match the table: `concatMap` for ordered writes, `exhaustMap` for a submit button, `mergeMap` (with a concurrency argument) for parallel work. If you are using `fetch` directly inside an observable, return a teardown that aborts: `new Observable((s) => { const c = new AbortController(); /* ... */ return () => c.abort(); })`.
+:::
+
+:::vue
+### In Vue
+
+A watcher's cleanup is the abort point: Vue runs it before the next run and on unmount, so `onWatcherCleanup` (3.5+) or the `onCleanup` argument give you latest-wins with cancellation.
+
+```ts
+const user = shallowRef<User | null>(null);
+const error = shallowRef<unknown>(null);
+
+watch(
+  () => props.id,
+  (id) => {
+    const controller = new AbortController();
+    onWatcherCleanup(() => controller.abort()); // runs before the next id is handled, and on unmount
+    fetchUser(id, controller.signal).then(
+      (value) => (user.value = value),
+      (reason) => {
+        if (!controller.signal.aborted) error.value = reason;
+      },
+    );
+  },
+  { immediate: true },
+);
+```
+
+Data libraries do this for you: TanStack Query for Vue passes an `AbortSignal` into `queryFn` and ignores superseded results by key, and `useFetch`/`useAsyncData` in Nuxt cancel when their reactive source changes. Cancellation does not undo a server-side write, so queue mutations or use versioned updates, as the warning above says.
+:::
 
 ### References
 

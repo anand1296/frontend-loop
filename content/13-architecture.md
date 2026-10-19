@@ -165,6 +165,7 @@ minutes: 20
 > [!TLDR]
 > Never stop feature work for a big-bang rewrite. Use the **strangler fig** approach: build a bridge so old and new can run side by side, migrate route by route (or widget by widget) prioritized by business value and change frequency, keep shared concerns (auth, routing, design tokens, API client) consistent across both, measure progress, and delete legacy code as you go. Leadership work is as important as technical work: a clear plan, milestones, a definition of done per screen, and guardrails that prevent new legacy code.
 
+:::react
 ### Technical bridge options
 
 | Bridge | How | When |
@@ -187,6 +188,78 @@ angular.module('app').directive('reactUsage', () => ({
   },
 }));
 ```
+:::
+
+:::angular
+### Technical bridge options (Angular target)
+
+When the destination is modern Angular, the official bridge is the hybrid upgrade module (`@angular/upgrade/static`): AngularJS and Angular run in one page, share DI, and can embed each other.
+
+| Bridge | How | When |
+| --- | --- | --- |
+| Angular inside AngularJS | `downgradeComponent` registers an Angular component as an AngularJS directive | Start: new widgets in Angular immediately |
+| AngularJS inside Angular | `UpgradeComponent` wraps an AngularJS directive as an Angular component | Mid-migration: new shell, legacy pages |
+| Shared services | `downgradeInjectable` / `upgrade` providers expose services both ways | Auth, API client, analytics |
+| Route-level split | `UpgradeModule` with the Angular router in front, or `ngRoute` fallback by URL | Clean ownership, full screens |
+
+```ts
+// Angular component used from AngularJS templates (the classic first step)
+import { downgradeComponent } from '@angular/upgrade/static';
+
+angular
+  .module('app')
+  .directive('usageChart', downgradeComponent({ component: UsageChartComponent }) as angular.IDirectiveFactory);
+```
+
+```html
+<!-- inside an existing AngularJS template -->
+<usage-chart [account-id]="ctrl.accountId"></usage-chart>
+```
+
+```ts
+// Bootstrapping both frameworks together
+platformBrowserDynamic().bootstrapModule(AppModule).then((platformRef) => {
+  const upgrade = platformRef.injector.get(UpgradeModule);
+  upgrade.bootstrap(document.documentElement, ['app'], { strictDi: true });
+});
+```
+
+The hybrid app runs two change-detection systems (AngularJS digest and Angular), so expect extra cost while both exist: keep the bridge thin, and move shared state out of `$scope` into services early. Prefer migrating leaf components first, then pages, then the shell.
+:::
+
+:::vue
+### Technical bridge options (Vue target)
+
+There is no official hybrid module for Vue, so the bridge is a thin mount layer you own. Vue's small runtime and `createApp` make mounting into legacy pages cheap.
+
+| Bridge | How | When |
+| --- | --- | --- |
+| Vue inside legacy | Mount a Vue app per widget with `createApp(...).mount(element)` from a directive or wrapper | Start: new widgets in Vue immediately |
+| Legacy inside Vue | Host the legacy shell inside a Vue route (or the reverse) | Mid-migration |
+| Route-level split | Router decides: migrated routes go to the Vue app, others to legacy | Clean ownership, full screens |
+| Micro-frontends | Module Federation or custom elements (`defineCustomElement`) load both | Many teams, long migration |
+
+```ts
+// AngularJS directive hosting a Vue component (the classic first step)
+import { createApp, h, reactive } from 'vue';
+import UsageChart from './UsageChart.vue';
+
+angular.module('app').directive('vueUsage', () => ({
+  restrict: 'E',
+  scope: { accountId: '<' },
+  link(scope: angular.IScope & { accountId: string }, element: JQLite) {
+    const props = reactive({ accountId: scope.accountId });
+    // The render function reads reactive state, so later changes re-render the Vue side.
+    const app = createApp({ render: () => h(UsageChart, { accountId: props.accountId }) });
+    app.mount(element[0]);
+    scope.$watch('accountId', (id: string) => (props.accountId = id));
+    scope.$on('$destroy', () => app.unmount());
+  },
+}));
+```
+
+For framework-neutral embedding, `defineCustomElement` compiles a Vue component to a standard Web Component (`<usage-chart account-id="42">`) that works in any legacy page, at the cost of Shadow DOM styling rules. Share auth, routing and the API client through plain modules, not through either framework's state container.
+:::
 
 ### Sequencing
 
@@ -521,12 +594,69 @@ minutes: 12
 - **Kill switches** default to the safe behavior when the flag service is unreachable.
 - **Observability**: attach active flags to RUM/error events so you can correlate regressions with a rollout.
 
+:::react
 ```tsx
 function BillingPage() {
   const newBilling = useFlag('newBilling'); // typed, bootstrapped, no async flicker
   return newBilling ? <BillingV2 /> : <BillingV1 />;
 }
 ```
+:::
+
+:::angular
+```ts
+// A typed, bootstrapped flag store: values are loaded before the app renders (APP_INITIALIZER / provideAppInitializer).
+@Injectable({ providedIn: 'root' })
+export class Flags {
+  private readonly values = signal<Readonly<FlagValues>>(DEFAULTS);
+  isOn<K extends keyof FlagValues>(key: K): Signal<FlagValues[K]> {
+    return computed(() => this.values()[key]);
+  }
+  load(values: FlagValues): void {
+    this.values.set(values);
+  }
+}
+
+@Component({
+  selector: 'app-billing-page',
+  imports: [BillingV1, BillingV2],
+  template: `@if (newBilling()) { <app-billing-v2 /> } @else { <app-billing-v1 /> }`,
+})
+export class BillingPage {
+  protected readonly newBilling = inject(Flags).isOn('newBilling'); // typed, bootstrapped, no async flicker
+}
+```
+
+For whole routes, a `canMatch: [flagGuard('newBilling')]` guard keeps the unreleased route (and its lazy chunk) out of reach until the flag is on, and gives you a clean place to delete the old route when the flag is removed.
+:::
+
+:::vue
+```ts
+// A typed, bootstrapped flag store: values are loaded before the app mounts.
+const values = reactive<FlagValues>({ ...DEFAULTS });
+
+export function loadFlags(next: FlagValues) {
+  Object.assign(values, next);
+}
+
+export function useFlag<K extends keyof FlagValues>(key: K) {
+  return computed(() => values[key]);
+}
+```
+
+```vue
+<script setup lang="ts">
+const newBilling = useFlag('newBilling'); // typed, bootstrapped, no async flicker
+</script>
+
+<template>
+  <BillingV2 v-if="newBilling" />
+  <BillingV1 v-else />
+</template>
+```
+
+Load the flags before `app.mount('#app')` (await them, or inline them in the HTML) so the first render is already correct. For whole routes, a `beforeEnter` or global `beforeEach` guard keeps the unreleased route out of reach until the flag is on.
+:::
 
 ### Flag hygiene
 

@@ -11,6 +11,7 @@ import type { Marked, Token } from 'marked';
 import { isLevel, LEVELS, type QuestionMeta, type SectionAnswers, type SectionMeta } from '../../src/content/types.ts';
 import { ContentError, parseKeyValueBlock, requireField, splitFrontmatter } from './frontmatter.ts';
 import { createMarkdownRenderer, toPlainText } from './markdown.ts';
+import { expandFrameworkBlocks } from './frameworks.ts';
 
 export interface SourceFile {
   path: string;
@@ -116,7 +117,7 @@ function compileQuestion(
 
   if (answerMarkdown.length < 200) throw new ContentError(`${where}: answer is suspiciously short`);
 
-  const tokens = marked.lexer(answerMarkdown);
+  const tokens = marked.lexer(expandFrameworkBlocks(answerMarkdown, where));
   const summary = findSummary(tokens);
   if (!summary) throw new ContentError(`${where}: answer must include a > [!TLDR] callout`);
 
