@@ -406,3 +406,21 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 - (+) Review effort is low: contributions already meet the publishing bar and the reviewer edits in place.
 - (−) A suggested new round must be created by the admin before approving into it.
 - (−) Branch protection lives in GitHub settings, not in the repository, so it must be set (and re-checked) manually; the owner, as a repository admin, can still bypass it unless "Do not allow bypassing" is enabled.
+
+---
+
+## ADR-026: The full question as a leading `[!PROMPT]` callout, visible before the answer
+
+**Status:** Accepted (v2.4)
+
+**Context.** Question titles are one-liners ("Build a typeahead…"). Real interview prompts carry a scenario, constraints and, for coding rounds, the cases the interviewer will try. Practice mode hides the answer until revealed, so the extra detail has to be visible *before* that.
+
+**Decision.** A new optional callout kind, `> [!PROMPT]` ("The full question"), written as the first block of a question body in both renderers (the TypeScript build-time one and the Go write-time one; the parity test covers it). The reader splits it off the compiled HTML (`splitPrompt`) and always shows it; the "answer it out loud first" gate stands in only for the rest. Coding questions list **Test cases** in it; conceptual ones list what a good answer should cover. All 109 questions have one.
+
+**Alternatives considered.** A new `prompt` column/field (a migration, API, editor and submission changes for what is just more Markdown); putting the detail inside the answer (hidden in practice mode, defeating its purpose); making titles longer (breaks the list's scanability).
+
+**Consequences.**
+- (+) No schema or API change: the editor, submissions, export/import and search all work unchanged, and the prompt text is searchable.
+- (+) Authors write it in the same Markdown file as the answer.
+- (−) The list still shows only the title; the detail appears when a question is opened.
+- (−) Existing deployments get the new prompts via Admin → Content → *Sync from repository* → *Overwrite changed…*.

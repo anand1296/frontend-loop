@@ -12,6 +12,14 @@ tags: behavioral, star, storytelling, interview preparation
 minutes: 15
 -->
 
+> [!PROMPT]
+> You have a final-round loop in two weeks and your stories are vague. Build a story bank that can answer most behavioral questions.
+>
+> **Do this**
+> - List 6 to 8 real stories (a failure, a conflict, a migration, mentoring, an ambiguous project, influencing without authority...).
+> - Write each in STAR+L in about two minutes: the situation in two sentences, your specific actions, a result with numbers, and what you learned.
+> - Practice mapping each story to several different questions.
+
 > [!TLDR]
 > Prepare 6–8 real stories, each told in **STAR + L** (Situation, Task, Action, Result, Learning) in about two minutes, with numbers and your personal decisions front and center ("I", not "we"). Map each story to several common questions so a small bank covers most prompts. The bar rises with level: senior stories show ownership of a hard technical outcome; lead/staff stories show multiplying others and cross-team influence; principal stories show setting direction for an organization.
 
@@ -57,6 +65,14 @@ tags: behavioral, migration, leadership, legacy, angularjs, react
 minutes: 12
 -->
 
+> [!PROMPT]
+> "Tell me about a large migration you led." The interviewer will probe your decisions, the risks you managed and the results.
+>
+> **Prepare to cover**
+> - The business case: why now, and what you chose not to do.
+> - The strategy: incremental approach, tooling and guardrails, how work was split across teams.
+> - A hard moment, how you handled stakeholders, and measurable results (delivery speed, defects, performance).
+
 > [!TLDR]
 > Interviewers want to hear: why the migration was worth it (business case, not just "old tech"), how you avoided a feature freeze (incremental strategy), how you made decisions (bridge architecture, prioritization), how you brought people along (patterns, docs, reviews), how you measured progress and quality, and how you finished. A strong answer has a clear arc and numbers.
 
@@ -91,6 +107,14 @@ tags: behavioral, conflict, disagreement, communication, influence
 minutes: 10
 -->
 
+> [!PROMPT]
+> "Tell me about a time you disagreed with a technical decision." They are looking for judgment and collaboration, not for a story where you were simply right.
+>
+> **Prepare to cover**
+> - The decision, the other person's reasoning and the constraints you didn't see at first.
+> - How you raised the disagreement (evidence, a prototype, a written proposal) and what you committed to.
+> - The outcome, including if you were wrong or if you changed your mind, and what you'd do differently.
+
 > [!TLDR]
 > Show that you disagree **with evidence and respect**, separate the decision from the person, seek to understand the other side's constraints, propose a way to decide (data, prototype, time-boxed experiment, clear criteria), and **commit** once a decision is made even if it isn't yours. The best stories end with a better outcome or with you being visibly gracious about being wrong.
 
@@ -124,6 +148,14 @@ tags: behavioral, mentoring, leadership, code review, team growth
 minutes: 10
 -->
 
+> [!PROMPT]
+> "How do you mentor engineers and raise the bar of a team?" Give an answer grounded in specific examples, not a philosophy.
+>
+> **Prepare to cover**
+> - How you tailor mentoring to a person (goals, gaps, stretch assignments) with a concrete story.
+> - Mechanisms that raise the bar: code review culture, design reviews, standards, hiring.
+> - How you measure growth, handle underperformance and avoid becoming the bottleneck.
+
 > [!TLDR]
 > Mentoring is tailored: understand the person's goals and gaps, give them stretch work with a safety net, and give specific, timely feedback. Raising the bar is systemic: code review norms that teach (explain the "why", link to docs), written patterns and RFCs, pairing on hard problems, incident reviews without blame, and making quality visible (tests, performance budgets, accessibility checks in CI). Measure success by what others can do without you.
 
@@ -152,6 +184,14 @@ level: lead
 tags: behavioral, tech debt, prioritization, stakeholders, roadmap
 minutes: 12
 -->
+
+> [!PROMPT]
+> Product says there's no room for tech debt this quarter. You believe a slow build and brittle tests are costing the team a day a week. How do you get it prioritized?
+>
+> **Prepare to cover**
+> - Quantifying the cost (delivery speed, incidents, onboarding) and linking it to business goals.
+> - Options: a dedicated percentage, bundling with features, incremental refactoring, a one-off project with milestones.
+> - How you communicate and negotiate, and what you do when the answer is still no.
 
 > [!TLDR]
 > Translate debt into **business impact** (slower delivery, incidents, performance, hiring, security risk), quantify it where possible, and attach it to the roadmap instead of competing with it. Use a mix of mechanisms: fix-as-you-go on code you touch, a standing capacity allocation (e.g. 15–20%), and dedicated projects for large debt with a clear payoff. Track outcomes so the next ask is easier.
@@ -188,6 +228,14 @@ level: principal
 tags: behavioral, rfc, technical strategy, architecture, principal engineer, writing
 minutes: 15
 -->
+
+> [!PROMPT]
+> You are asked to write an RFC proposing a company-wide frontend platform change (for example, a shared design system and framework upgrade) that affects ten teams.
+>
+> **Prepare to cover**
+> - The structure: problem with evidence, goals and non-goals, options with trade-offs, recommendation, rollout and migration, risks.
+> - How you get early feedback, build consensus and handle objections.
+> - Decision records, ownership after approval, and how you measure success.
 
 > [!TLDR]
 > A good RFC states the problem with evidence, the goals and non-goals, options with honest trade-offs, a recommendation, and a rollout and migration plan with success metrics. Driving it means pre-wiring stakeholders before the review, inviting criticism early, deciding with a clear owner and deadline, and following through with tooling and examples so adoption is easy. Strategy documents go one level up: diagnose the situation, set guiding policies, and define coherent actions over quarters.
@@ -230,6 +278,14 @@ tags: behavioral, failure, incidents, postmortem, ownership
 minutes: 10
 -->
 
+> [!PROMPT]
+> "Tell me about a failure or production incident you owned." Interviewers listen for ownership, calm under pressure and what changed afterwards.
+>
+> **Prepare to cover**
+> - What happened and your role, without blaming others.
+> - Detection, mitigation and communication during the incident; the root cause found afterwards.
+> - The follow-up changes (tests, monitoring, process) and how you know they worked.
+
 > [!TLDR]
 > Pick a real failure with real consequences, own your part without excuses, and spend most of the time on **what you did next**: how you mitigated, how you found the root cause, what systemic fixes you put in place, and what you changed in how you work. Show calm under pressure and a blameless mindset. Avoid fake failures ("I work too hard").
 
@@ -258,6 +314,14 @@ level: principal
 tags: behavioral, influence, stakeholders, cross-team, platform, principal engineer
 minutes: 12
 -->
+
+> [!PROMPT]
+> You want ten teams to adopt a new frontend platform (build tooling, design system and lint rules) and none of them report to you. How do you get alignment and adoption?
+>
+> **Prepare to cover**
+> - Understanding each team's goals and pain, and positioning the change in their interest.
+> - Tactics: pilots with a friendly team, data, champions, migration tooling, a clear support path.
+> - Handling resistance and escalation, and measuring adoption honestly.
 
 > [!TLDR]
 > You can't order other teams to adopt your change, so make it **in their interest**: understand each team's goals and pain, show how the change helps them (with data and a working prototype), lower the cost of adoption to near zero (migrations, codemods, pairing), find early adopters and make them successful and visible, and use the organization's existing mechanisms (architecture reviews, OKRs, platform roadmaps) to make the decision durable. Give credit away generously.

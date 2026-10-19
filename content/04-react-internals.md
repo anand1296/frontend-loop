@@ -12,6 +12,14 @@ tags: react, reconciliation, fiber, render phase, commit phase, batching
 minutes: 15
 -->
 
+> [!PROMPT]
+> A product manager asks: "When I call `setState`, how long until the user sees the change, and what does React do in between?" You are asked to explain it with a concrete component whose child uses `useLayoutEffect` and `useEffect`.
+>
+> **Cover**
+> - Trigger, render, reconcile, commit, and where the browser paints.
+> - When each effect type runs, and what batching and lanes change in React 18/19.
+> - Why render must be pure, and what Strict Mode's double render is checking.
+
 > [!TLDR]
 > `setState` enqueues an update on the component's fiber and schedules work at a priority (lane). React then **renders**: calls your components to get new element trees and **reconciles** them against the current fiber tree (same type + same key → update, otherwise replace). Render is pure and interruptible in concurrent mode. Then it **commits** synchronously: applies DOM mutations, attaches refs, runs layout effects, and lets the browser paint; passive effects (`useEffect`) run after paint. Updates in the same event are **batched** into one render.
 
@@ -77,6 +85,14 @@ level: senior
 tags: react, rerenders, memo, context, performance, usememo
 minutes: 15
 -->
+
+> [!PROMPT]
+> A table of 2,000 rows re-renders on every keystroke in a search box above it, and the page feels slow. You are asked to explain what triggers renders and fix it without sprinkling `useMemo` everywhere.
+>
+> **Cover**
+> - Exactly what causes a component to re-render (state, parent, context) and what doesn't.
+> - Optimizations that work in order: move state down, split components, pass children, `memo` with stable props, virtualization.
+> - How you prove the fix with the React Profiler, and where the React Compiler changes the advice.
 
 > [!TLDR]
 > A component re-renders when its state changes, its parent re-renders (props don't matter unless it's memoized), or a context it reads changes. Re-rendering isn't a bug; **expensive or excessive** re-rendering is. The best fixes are structural: move state down (colocation), lift content up (`children` as props), split contexts by update frequency, and subscribe to slices of external stores. `React.memo`/`useMemo`/`useCallback` are targeted tools after profiling, and the React Compiler automates most of them.
@@ -178,6 +194,14 @@ tags: useeffect, derived state, events, react
 minutes: 15
 -->
 
+> [!PROMPT]
+> Review this component: it fetches data in `useEffect`, mirrors props into state with another effect, resets a form when an id changes using an effect, and subscribes to a store manually. Which of these effects shouldn't exist?
+>
+> **Cover**
+> - The mental model: effects synchronize with external systems; events and derived data don't need them.
+> - For each smell, the replacement (compute during render, `key` to reset state, event handlers, `useSyncExternalStore`, a data library).
+> - The remaining legitimate effect and how to write its cleanup correctly, including Strict Mode double-invocation.
+
 > [!TLDR]
 > `useEffect` exists to **synchronize with something outside React** (DOM APIs, subscriptions, network, timers, third-party widgets). If the code reacts to a **user action**, it belongs in the event handler. If it **computes** a value from props/state, compute it during render (memoize if expensive). If it **resets** state when a prop changes, use a `key` or adjust state during render. Most bugs in effect-heavy code (extra renders, loops, races) disappear when unnecessary effects are removed.
 
@@ -254,6 +278,14 @@ level: lead
 tags: concurrent rendering, usetransition, usedeferredvalue, suspense
 minutes: 18
 -->
+
+> [!PROMPT]
+> A search page filters 20,000 items on every keystroke and typing lags. Someone says "just wrap it in `startTransition`". Explain what that does, what `useDeferredValue` does differently, and what Suspense adds.
+>
+> **Cover**
+> - Urgent versus transition updates, interruptible rendering and what is discarded.
+> - When `useDeferredValue` is the better fit (you don't own the state update).
+> - What concurrency does not fix (expensive renders that never yield, effects) and how to verify an improvement.
 
 > [!TLDR]
 > Concurrent rendering lets React prepare a new UI **in the background** and interrupt that work for more urgent updates. `startTransition` marks an update as non-urgent, so typing stays responsive while a heavy list re-renders, and already-visible content isn't replaced by a spinner. `useDeferredValue` gives you a lagging copy of a value to render the expensive part with. Suspense declares loading boundaries; inside a transition, React keeps showing the old UI instead of falling back.
@@ -345,6 +377,14 @@ level: senior
 tags: react 19, actions, useactionstate, useoptimistic, use, forms
 minutes: 15
 -->
+
+> [!PROMPT]
+> You are building a "rename project" form that should feel instant: show the new name immediately, disable the button while saving, roll back on error and show the server's validation message. Do it with React 19 features instead of manual `isLoading` state.
+>
+> **Cover**
+> - Actions, `useActionState`, `useFormStatus` and `useOptimistic`: what each owns.
+> - Behavior on error and on overlapping submissions.
+> - Where `use()` fits for reading promises, and what still needs a library (caching, retries).
 
 > [!TLDR]
 > React 19 makes async state transitions first-class. An **Action** is an async function run in a transition; React tracks its pending state, errors and ordering. `useActionState` wraps an action and gives you `[state, dispatch, isPending]`. `<form action={fn}>` submits through an action (and works with Server Functions for progressive enhancement). `useOptimistic` shows a temporary value while the action runs and reverts automatically. `use(promise)` reads a promise inside render with Suspense. `ref` is now a normal prop.
@@ -443,6 +483,14 @@ tags: rsc, server components, next.js, streaming, use client
 minutes: 20
 -->
 
+> [!PROMPT]
+> Your team is deciding whether to adopt React Server Components for a dashboard with mostly read-only data and a few interactive widgets. Explain the model so the team can decide.
+>
+> **Cover**
+> - What runs where, the `"use client"` boundary and what can cross it (serializable props only).
+> - Benefits (bundle size, data access near the source) and costs (mental model, caching, waterfalls, testing, hosting).
+> - A boundary design for the dashboard, and the mistakes you've seen (client component at the root, passing functions).
+
 > [!TLDR]
 > Server Components run **only on the server** (at build or request time). They can read data directly (DB, internal services), and their code never ships to the browser; they send a serialized UI description (the RSC payload). Client Components (`'use client'`) are ordinary React components that hydrate and handle interactivity. The boundary is a module boundary: props crossing it must be serializable. Benefits: less JS, no client waterfalls for data, secrets stay on the server. Costs: a new mental model, framework coupling, caching complexity and a network round trip for server-driven updates.
 
@@ -528,6 +576,14 @@ tags: usesyncexternalstore, tearing, zustand, redux, concurrent rendering
 minutes: 12
 -->
 
+> [!PROMPT]
+> A homegrown store works fine in React 17 but shows inconsistent numbers in two parts of the screen under React 18 transitions. Explain the bug and how `useSyncExternalStore` fixes it.
+>
+> **Cover**
+> - What tearing is and why interruptible rendering makes it possible.
+> - The `subscribe` and `getSnapshot` contract (stable snapshots, no new object per call) and the infinite-loop trap.
+> - How Redux, Zustand or Jotai integrate, and when you'd skip an external store entirely.
+
 > [!TLDR]
 > **Tearing** is when one render shows inconsistent values from an external store because the store changed mid-render (possible once rendering is interruptible). `useSyncExternalStore(subscribe, getSnapshot)` fixes it: React reads a snapshot, and if it changed during a concurrent render, re-renders synchronously so the whole UI shows one version. Rules: `subscribe` must be stable, `getSnapshot` must return the **same reference** when nothing changed, and selectors must not create new objects each call.
 
@@ -595,6 +651,14 @@ tags: react compiler, memoization, usememo, usecallback, rules of react
 minutes: 10
 -->
 
+> [!PROMPT]
+> Your codebase has hundreds of `useMemo` and `useCallback` calls, some wrong. The team is considering turning on the React Compiler. What changes, and what do you do on day one?
+>
+> **Cover**
+> - What the compiler memoizes, and what it refuses to compile (rules of React violations).
+> - How you adopt it incrementally (directives, ESLint plugin, measuring) and what you stop writing.
+> - Where manual memoization remains justified, and how to confirm the compiler actually helped.
+
 > [!TLDR]
 > The React Compiler is a build-time plugin that analyzes components and hooks and inserts fine-grained memoization automatically: values, callbacks and JSX are cached per their actual dependencies. It makes most manual `useMemo`/`useCallback`/`memo` unnecessary, but only for code that follows the **Rules of React** (pure render, no mutation of props/state, hooks rules). Code it can't prove safe is skipped, so adoption starts with fixing lint violations.
 
@@ -644,6 +708,14 @@ level: senior
 tags: closures, hooks, useref, functional updates, useeffectevent
 minutes: 12
 -->
+
+> [!PROMPT]
+> A counter shows the right number but a `setInterval` callback inside `useEffect` always logs `0`, and a "Save" button sometimes saves the previous form values. Diagnose both and give the fixes.
+>
+> **Cover**
+> - Why every render closes over its own props and state.
+> - Fixes: functional updates, correct dependency arrays, refs for the latest value, effect events (`useEffectEvent`), or restructuring.
+> - How to spot these bugs in review, and what the exhaustive-deps lint rule can and cannot tell you.
 
 > [!TLDR]
 > Every render creates new functions that close over **that render's** props and state. A callback created in an earlier render and called later (by a timer, subscription, or memoized handler) sees old values. Fix it by putting the value in the dependency list (re-creating the callback), using **functional updates** (`setCount(c => c + 1)`) so you don't need the value at all, reading from a **ref** that always holds the latest value, or using `useEffectEvent` for effect logic that must see fresh values without re-subscribing.

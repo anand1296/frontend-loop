@@ -12,6 +12,14 @@ tags: event loop, microtasks, rendering, requestAnimationFrame, long tasks
 minutes: 15
 -->
 
+> [!PROMPT]
+> A teammate shows you a page where a button click sets a loading spinner, runs a heavy loop, then removes the spinner, and the spinner never appears. Another snippet logs from a `setTimeout`, a `Promise.then`, a `requestAnimationFrame` callback and `queueMicrotask` in one handler, and nobody can predict the order.
+>
+> **Cover**
+> - The order of those four callbacks, and why.
+> - Exactly when the browser is allowed to render, and why the spinner never painted.
+> - How you would fix it (yielding, `scheduler.yield()`, `requestAnimationFrame` plus a timeout, moving work to a worker).
+
 > [!TLDR]
 > The browser runs one **task** at a time (a script, a click handler, a timer callback). After each task it drains the **microtask queue** completely (promise reactions, `queueMicrotask`, `MutationObserver`). Then, roughly every frame, it may **render**: run `requestAnimationFrame` callbacks, recalculate style, layout, paint. Rendering can only happen *between* tasks, so a long task or an endless microtask chain blocks paint and input.
 
@@ -122,6 +130,14 @@ tags: closures, memory, garbage collection, devtools, heap snapshot
 minutes: 15
 -->
 
+> [!PROMPT]
+> Your support dashboard is open all day. After a few hours the tab uses 1.5 GB and scrolling stutters. Heap snapshots show thousands of detached DOM nodes and closures. The app has global event listeners, polling timers and a module-level cache.
+>
+> **Cover**
+> - How a closure keeps data alive, with a concrete leaking example.
+> - The steps you take in DevTools (heap snapshots, allocation timeline, retainer paths) to find the culprit.
+> - The patterns that prevent the leak (cleanup functions, `AbortController`, `WeakMap`, bounded caches).
+
 > [!TLDR]
 > A closure keeps its whole scope reachable for as long as the function itself is reachable. Leaks happen when something long-lived (a global listener, a timer, a module-level cache, a subscription) holds a function that captured something large, often a detached DOM tree or an old component's state. Find them with heap snapshots (compare before/after a repeated action, look for "Detached" nodes and growing retainers) and fix them by giving every subscription an owner and a cleanup.
 
@@ -203,6 +219,16 @@ level: senior
 tags: this, arrow functions, classes, bind
 minutes: 10
 -->
+
+> [!PROMPT]
+> You are reviewing a pull request where a class method is passed as a callback and `this` is `undefined` at runtime, while a very similar arrow-function class field works. A colleague asks why `setTimeout(obj.method)` loses the object but `obj.method()` doesn't.
+>
+> **Predict the output**
+> - `const f = obj.method; f()` in a module (strict mode).
+> - `obj.method.call(other)` and `obj.method.bind(a).call(b)`.
+> - A method that contains a nested `function` versus a nested arrow function.
+>
+> Explain the precedence of the binding rules and when arrow-function class fields are the wrong choice.
 
 > [!TLDR]
 > `this` is decided by **how a function is called**, not where it is defined, except for arrow functions, which have no `this` of their own and use the enclosing scope's. The precedence is: `new` > explicit (`call`/`apply`/`bind`) > method call (`obj.fn()`) > default (`undefined` in strict mode/modules, `globalThis` in sloppy scripts). Class field arrow functions capture the instance at construction time.
@@ -305,6 +331,15 @@ tags: prototypes, classes, private fields, inheritance
 minutes: 12
 -->
 
+> [!PROMPT]
+> An interviewer asks you to explain what happens when you write `class B extends A`, call `new B()`, and read a property that exists only on `A.prototype`. Then they ask whether `#secret` is the same as a `_secret` convention, and why a Babel-compiled class can behave differently from the native one.
+>
+> **Cover**
+> - The prototype chain created by `extends` and where `super` lookups go.
+> - What `new` does step by step.
+> - How private fields differ from properties (brand checks, no reflection, not inherited).
+> - Observable differences between classes and constructor functions.
+
 > [!TLDR]
 > Every object has an internal `[[Prototype]]` link; property lookups walk that chain. `class` is mostly syntax over constructor functions and `prototype` objects, with real differences: classes are strict, must be called with `new`, have `super`/`[[HomeObject]]` semantics, and `#private` fields are stored per-instance in a way that is truly inaccessible from outside (not just by convention) and checked by a "brand" (`#x in obj`).
 
@@ -394,6 +429,14 @@ tags: modules, esm, commonjs, tree shaking, bundlers
 minutes: 15
 -->
 
+> [!PROMPT]
+> Your team is migrating a Node service and a bundled web app from CommonJS to ES modules. After the first PR, a circular import returns `undefined`, a default import from a CJS dependency is wrapped in an object, and tree shaking removes less than before.
+>
+> **Cover**
+> - Live bindings versus copied `module.exports`, with a cycle example.
+> - Why static `import` enables tree shaking and `require` doesn't.
+> - Interop rules (default imports of CJS, `__esModule`, dual packages, `exports` maps) and a safe migration order.
+
 > [!TLDR]
 > ES modules are **static** (imports/exports known before execution), **asynchronous to load**, and export **live bindings**. CommonJS is dynamic: `require` runs the module synchronously and returns a snapshot of `module.exports`. Static structure is what makes tree shaking, top-level `await` and reliable cycle handling possible. Interop pain (default vs named exports, dual packages) comes from mapping one model onto the other.
 
@@ -480,6 +523,14 @@ level: senior
 tags: iterators, generators, async iterators, pagination, streams
 minutes: 12
 -->
+
+> [!PROMPT]
+> You are asked to stream a paginated API into a table, process a huge CSV without loading it all, and cancel the work when the user navigates away. A teammate proposes recursion with promises; you think async iterators fit better.
+>
+> **Cover**
+> - The iterator and async iterator protocols, and what `for await...of` does with `return()` on early exit.
+> - A generator-based pagination helper with cancellation.
+> - Where generators and async iterators help in UI code, and where they are overkill (a plain array and `map` is fine).
 
 > [!TLDR]
 > An iterator is any object with `next()` returning `{ value, done }`; the iterable protocol (`[Symbol.iterator]`) lets `for...of`, spread and destructuring consume it. Generators are the easiest way to write iterators: they pause at `yield` and resume on demand, so they're **lazy**. Async iterators (`for await`) are the clean model for paginated APIs and streams. Use them when data is naturally sequential and possibly infinite; avoid them for ordinary arrays.
@@ -576,6 +627,14 @@ tags: weakmap, weakref, garbage collection, caching
 minutes: 10
 -->
 
+> [!PROMPT]
+> A component library attaches metadata to DOM nodes and caches expensive results per object. In long sessions the metadata outlives the nodes. Someone suggests `WeakRef` and `FinalizationRegistry` to "clean everything up automatically".
+>
+> **Cover**
+> - When `WeakMap` or `WeakSet` is the right tool and why you cannot iterate them.
+> - What `WeakRef.deref()` guarantees, and why cleanup callbacks must not be load-bearing.
+> - A cache design that uses weak references safely, and the traps (timing differences, tests that cannot observe GC).
+
 > [!TLDR]
 > `WeakMap`/`WeakSet` hold keys weakly: attaching data to an object doesn't keep the object alive, and entries vanish with their keys. That's the right tool for metadata on objects you don't own. `WeakRef` lets you hold an object *without* keeping it alive, and `FinalizationRegistry` tells you (eventually, maybe) when it was collected. Those two are for rare caching/interop cases; GC timing is non-deterministic, so never put correctness on them.
 
@@ -647,6 +706,20 @@ level: lead
 tags: proxy, reflect, reactivity, signals
 minutes: 15
 -->
+
+> [!PROMPT]
+> Implement `reactive(obj)` and `effect(fn)`: an effect re-runs when any reactive property it read changes, and only then. This is the core of Vue 3 style reactivity, built with `Proxy`.
+>
+> **Requirements**
+> - Track dependencies in the `get` trap and trigger in `set`/`deleteProperty`.
+> - Nested objects become reactive lazily; effects never loop on their own writes.
+>
+> **Test cases**
+> - `state = reactive({ count: 0 })`, `effect(() => log.push(state.count))`, then `state.count++` → `log` is `[0, 1]`.
+> - Writing the same value (`state.count = 1` twice) → the effect runs once, not twice.
+> - An effect that reads `state.a` only does not re-run when `state.b` changes.
+> - `state.user.name = 'x'` on a nested object re-runs effects that read `state.user.name`.
+> - Name the limits: `Map`/`Set`, identity (`proxy !== target`), private fields, array methods.
 
 > [!TLDR]
 > A `Proxy` intercepts operations (`get`, `set`, `has`, `deleteProperty`...) on a target. Reactivity systems (Vue 3, MobX, Valtio) use the `get` trap to record which effect read which key, and the `set` trap to re-run those effects. It works well but has sharp edges: identity (`proxy !== target`), private fields, built-ins like `Map` and `Date` with internal slots, and performance on hot paths. Signals are the same idea with explicit getters instead of proxies.

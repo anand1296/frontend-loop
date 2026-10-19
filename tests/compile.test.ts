@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileContent, readContentDir, splitQuestions, type SourceFile } from '../build/content/compile.ts';
 import { ContentError } from '../build/content/frontmatter.ts';
+import { splitPrompt } from '../src/features/section/prompt.ts';
 
 const answer = (extra = '') => `<!--
 id: q-one
@@ -43,6 +44,20 @@ describe('compileContent', () => {
     assert.equal(question?.summary, 'A short summary with bold and code.');
     assert.deepEqual(question?.tags, ['react', 'effects']);
     assert.match(answers.sec?.['q-one'] ?? '', /callout-tldr/);
+  });
+
+  it('renders an optional leading [!PROMPT] callout without disturbing the summary', () => {
+    const prompt = '> [!PROMPT]\n> Build a **thing**.\n>\n> **Test cases**\n> - `a()` returns 1\n> - `b()` throws\n\n';
+    const source = answer().replace('> [!TLDR]', `${prompt}> [!TLDR]`);
+    const { sections, answers } = compileContent([file(`## What is it?\n${source}`)]);
+    assert.equal(sections[0]?.questions[0]?.summary, 'A short summary with bold and code.');
+    const html = answers.sec?.['q-one'] ?? '';
+    assert.ok(html.startsWith('<aside class="callout callout-prompt"><p class="callout-label">The full question</p>'));
+    assert.match(html, /<li><code>a\(\)<\/code> returns 1<\/li>/);
+    const { prompt: head, rest } = splitPrompt(html);
+    assert.match(head, /Test cases/);
+    assert.ok(rest.startsWith('\n<aside class="callout callout-tldr"') || rest.startsWith('<aside class="callout callout-tldr"'));
+    assert.deepEqual(splitPrompt('<p>plain</p>'), { prompt: '', rest: '<p>plain</p>' });
   });
 
   it('escapes raw HTML in answers', () => {

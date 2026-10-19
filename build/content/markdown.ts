@@ -92,6 +92,7 @@ const LANGUAGES: Record<string, LanguageDef> = {
 
 /** Callout kinds, written GitHub-alert style: `> [!TIP]`. */
 export const CALLOUTS: Record<string, string> = {
+  PROMPT: 'The full question',
   TLDR: 'The 60-second answer',
   NOTE: 'Note',
   TIP: 'Tip',

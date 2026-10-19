@@ -77,9 +77,12 @@ test('practice mode hides the answer until revealed', async ({ page }) => {
   const first = page.locator('.q').first();
   await first.locator('.q-trigger').click();
   await expect(first.locator('.practice')).toBeVisible();
-  await expect(first.locator('.prose')).toHaveCount(0);
+  // The full question stays visible; only the answer is held back.
+  await expect(first.locator('.callout-prompt')).toBeVisible();
+  await expect(first.locator('.callout-tldr')).toHaveCount(0);
   await first.getByRole('button', { name: 'Reveal the answer' }).click();
-  await expect(first.locator('.prose')).toBeVisible();
+  await expect(first.locator('.callout-tldr')).toBeVisible();
+  await expect(first.locator('.callout-prompt')).toBeVisible();
 });
 
 test('import, spaced review and reset', async ({ page }) => {

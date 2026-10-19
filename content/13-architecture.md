@@ -12,6 +12,14 @@ tags: micro-frontends, module federation, architecture, team topology, webpack
 minutes: 20
 -->
 
+> [!PROMPT]
+> Three teams want to split a 400-page admin app into micro-frontends with Module Federation. You are asked whether it's worth it and how to do it without a mess.
+>
+> **Cover**
+> - Problems micro-frontends solve (team autonomy, independent deploys) and problems they create (duplication, UX drift, performance, version skew).
+> - Integration design: shared dependencies, routing, shared state/events, design-system consistency.
+> - Failure modes (a remote is down), testing, observability and the exit criteria if it doesn't work.
+
 > [!TLDR]
 > Micro-frontends split a frontend by **business domain** so teams can build, test and deploy independently. They pay off when you have many teams blocked on a shared release train, or when you must migrate incrementally between stacks. They cost runtime complexity (shared dependency versions, multiple React copies, cross-app state and routing), performance (more JS, waterfalls), and consistency (design drift). Module Federation solves runtime code sharing; it doesn't solve contracts, ownership or UX consistency. Prefer a well-structured monorepo with independent deploy units first; adopt runtime composition only where independent deployability is worth its price.
 
@@ -80,6 +88,14 @@ tags: monorepo, pnpm, nx, turborepo, ci, code ownership
 minutes: 15
 -->
 
+> [!PROMPT]
+> Your company has 12 frontend repos with duplicated tooling and painful cross-repo changes. Propose a monorepo setup and how you migrate to it.
+>
+> **Cover**
+> - Workspace and task tooling (pnpm, Nx, Turborepo): remote caching, affected-only builds, boundaries.
+> - Versioning and publishing, code ownership, CI time and dependency rules.
+> - Migration plan with minimal disruption, and the downsides to be honest about.
+
 > [!TLDR]
 > A monorepo puts apps and shared packages in one repository so changes across them are atomic, versions stay aligned, and code reuse is cheap. It needs tooling for three things: a **package manager with workspaces** (pnpm), a **task runner with caching and affected detection** (Nx or Turborepo) so CI only builds and tests what changed, and **enforced boundaries** (who may import what) so it doesn't become a big ball of mud. Add CODEOWNERS and consistent configs.
 
@@ -137,6 +153,14 @@ level: principal
 tags: migration, strangler fig, angularjs, legacy, architecture, leadership
 minutes: 20
 -->
+
+> [!PROMPT]
+> You lead an AngularJS to React migration of a product with 300 screens and a roadmap that can't pause. Describe how you'd run it.
+>
+> **Cover**
+> - The strangler approach: a bridge between old and new, routing, shared state and styling.
+> - Prioritization (what to migrate first), tooling to prevent new legacy code, and how you measure progress.
+> - Risks (parallel UX, performance, morale), communication with stakeholders and what "done" means.
 
 > [!TLDR]
 > Never stop feature work for a big-bang rewrite. Use the **strangler fig** approach: build a bridge so old and new can run side by side, migrate route by route (or widget by widget) prioritized by business value and change frequency, keep shared concerns (auth, routing, design tokens, API client) consistent across both, measure progress, and delete legacy code as you go. Leadership work is as important as technical work: a clear plan, milestones, a definition of done per screen, and guardrails that prevent new legacy code.
@@ -197,6 +221,14 @@ tags: rendering, ssr, ssg, csr, islands, rsc, architecture
 minutes: 18
 -->
 
+> [!PROMPT]
+> A new product has a marketing site, an authenticated app and a docs section. The team debates SPA versus SSR versus static. Decide per surface.
+>
+> **Cover**
+> - The criteria: SEO, personalization, interactivity, data freshness, team skills and infrastructure.
+> - Trade-offs of SPA, SSR, SSG/ISR, streaming, islands and RSC.
+> - Your recommendation for each surface, and how you keep the option to change later.
+
 > [!TLDR]
 > Decide per surface using: how **dynamic** the content is (static, per request, per user), how **interactive** the page is, whether **SEO**/first paint matter, and operational constraints (servers, caching, team skills). Static and SEO-critical: SSG/ISR at the edge. Personalized but content-heavy: SSR with streaming, or RSC. Highly interactive app behind login: SPA (CSR) with code splitting is often simplest. Content with sprinkles of interactivity: islands. Many products mix strategies by route.
 
@@ -235,6 +267,14 @@ level: lead
 tags: state management, react query, redux, url state, forms, architecture
 minutes: 15
 -->
+
+> [!PROMPT]
+> A codebase keeps all state in one global store: server data, form drafts, UI toggles and URL filters. Bugs are everywhere. Propose a state architecture.
+>
+> **Cover**
+> - The kinds of state (server, client, URL, form, ephemeral) and the right owner for each.
+> - Tooling choices (a server-state cache, URL as state, local state first) and where a global store is justified.
+> - A migration path and rules that keep it from drifting back.
 
 > [!TLDR]
 > Most "state management" problems come from mixing kinds of state. **Server state** (data owned by the backend) belongs in a cache with fetching, invalidation and staleness (TanStack Query, RTK Query, Apollo). **URL state** (filters, tabs, pagination, selected ids) belongs in the URL so it's shareable and survives reloads. **Form state** belongs in a form library or local state until submit. **Client/UI state** (theme, open panels, wizard steps) stays local, lifted only as far as needed; a global store is for genuinely global, client-owned state. Once server state leaves Redux, most apps need very little global state.
@@ -294,6 +334,14 @@ tags: design systems, governance, versioning, adoption, codemods, platform
 minutes: 15
 -->
 
+> [!PROMPT]
+> You are asked to run the design system as a product for 20 product teams. Adoption is low, teams fork components and a breaking change last quarter caused outages.
+>
+> **Cover**
+> - Scope, ownership and contribution model; how you decide what belongs in the system.
+> - Versioning, deprecation and migration tooling (codemods), plus documentation and support.
+> - Metrics (adoption, time to ship, accessibility) and how you convince teams to use it.
+
 > [!TLDR]
 > A design system succeeds when product teams **choose** it because it makes them faster and their UI better. Treat it as a product: clear scope (tokens, primitives, patterns), documentation with live examples, semantic versioning with changelogs, a contribution model (core team owns quality, product teams contribute with review), adoption metrics, and a deprecation process with codemods so breaking changes don't strand teams. Accessibility and performance are features the system guarantees.
 
@@ -344,6 +392,14 @@ tags: api design, rest, graphql, trpc, bff, openapi
 minutes: 15
 -->
 
+> [!PROMPT]
+> Your React app calls 6 REST endpoints per screen and over-fetches on mobile. Compare REST, GraphQL, tRPC and a Backend-for-Frontend, and pick one with reasons.
+>
+> **Cover**
+> - Performance, caching, type safety, tooling, team structure and operational cost of each.
+> - Generated clients and contract testing; versioning and deprecation.
+> - Migration without a rewrite, and the failure modes of your choice.
+
 > [!TLDR]
 > REST is simple, cacheable at the HTTP layer, and universal, but screens often need several calls or get over-fetched payloads. GraphQL lets each screen ask for exactly what it needs in one round trip with a typed schema, at the cost of server complexity, caching via normalized client stores, and query-cost controls. tRPC gives end-to-end TypeScript types with almost no ceremony but couples client and server to one TS codebase. A **BFF** (backend-for-frontend) owned by the frontend team aggregates and shapes upstream APIs per client, and is often the highest-leverage choice regardless of protocol. Generate typed clients from schemas either way.
 
@@ -385,6 +441,14 @@ level: lead
 tags: observability, rum, error tracking, tracing, source maps, alerting, datadog, sentry
 minutes: 15
 -->
+
+> [!PROMPT]
+> After a release, conversion drops 4% but there are no alerts and the error tracker is noisy. Design frontend observability so the team learns about problems before users complain.
+>
+> **Cover**
+> - Signals: errors (with source maps and release tags), Web Vitals RUM, logs, traces and business events.
+> - Alerting that people trust: thresholds, deduplication, ownership, and release health.
+> - Privacy and cost (sampling, PII), and how you use the data in incident response.
 
 > [!TLDR]
 > You need four signals: **errors** (grouped, deobfuscated with private source maps, tagged with release and user context), **performance** (Web Vitals and custom timings from real users), **traces** (frontend spans propagated to backend via `traceparent` so a slow click maps to a slow service), and **product analytics** (did the feature work for users?). Alert on user-impacting symptoms (error rate per release, p75 vitals per route, failed critical journeys), not on every exception. Tie everything to releases and feature flags so regressions point at a change.
@@ -437,6 +501,14 @@ level: lead
 tags: feature flags, progressive delivery, canary, experimentation, release management
 minutes: 12
 -->
+
+> [!PROMPT]
+> Your team ships big features behind flags, but nobody removes them and a half-enabled flag combination caused an incident. Design your feature flag and progressive delivery practice.
+>
+> **Cover**
+> - Flag types (release, experiment, ops, permission), targeting and percentage rollouts, kill switches.
+> - Lifecycle and flag debt: ownership, expiry, cleanup automation; testing combinations.
+> - Rollout and monitoring: canary, automatic rollback on metrics, and avoiding flicker on the client.
 
 > [!TLDR]
 > Feature flags decouple **deploy** from **release**: code ships dark, then turns on for internal users, a percentage, a segment, or everyone, with instant rollback. Use them for incremental rollouts, kill switches for risky dependencies, experiments, and trunk-based development. Manage their cost: evaluate flags consistently (server and client agree, no UI flicker), type them, give each an owner and expiry, test both paths for critical flags, and delete them promptly; stale flags are tech debt that multiplies code paths.

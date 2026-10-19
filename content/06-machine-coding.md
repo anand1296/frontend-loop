@@ -12,6 +12,20 @@ tags: machine coding, combobox, autocomplete, accessibility, debounce, race cond
 minutes: 45
 -->
 
+> [!PROMPT]
+> Build a search-as-you-type combobox for a user directory. Typing queries an async `search(query, signal)` function; results appear in a listbox and can be chosen with mouse or keyboard. Treat it as a 45-minute machine-coding round.
+>
+> **Requirements**
+> - Search starts after 2 characters, debounced by about 250 ms; stale responses must never overwrite newer ones.
+> - Loading, empty and error states; ARIA 1.2 combobox pattern; focus stays in the input.
+> - Arrow keys, Enter to select, Escape to close.
+>
+> **Test cases**
+> - Typing `a` does nothing; typing `al` calls `search` once after the debounce.
+> - Typing `al` then `ali` quickly: only the `ali` results are shown, even if the `al` response arrives last.
+> - ArrowDown twice then Enter selects the second option and calls `onSelect` with it; Escape closes the list and keeps the text.
+> - A rejected request shows an error message and a working retry; no results shows "No matches".
+
 > [!TLDR]
 > Plan in this order: requirements (async source, min chars, debounce, keyboard, selection), state (query, results, status, active index, open), data flow (debounced query → cancellable fetch → latest-wins), then accessibility (ARIA 1.2 combobox: `role="combobox"` input with `aria-expanded`, `aria-controls`, `aria-activedescendant`; `role="listbox"` with `role="option"` items). Handle loading/empty/error states, cache recent queries, and keep focus in the input the whole time.
 
@@ -228,6 +242,19 @@ tags: virtualization, windowing, performance, scrolling, machine coding
 minutes: 40
 -->
 
+> [!PROMPT]
+> Build a `VirtualList` that renders 100,000 rows smoothly by rendering only what is visible. Start with fixed row heights, then support variable heights.
+>
+> **Requirements**
+> - A scroll container with a spacer of the full height; rows positioned with `transform`; overscan of a few rows.
+> - Variable heights measured after render (`ResizeObserver`) without scroll jumps; `scrollToIndex(i)`.
+>
+> **Test cases**
+> - 100,000 rows, 40 px each, a 400 px viewport → about 10 rows plus overscan are in the DOM, never 100,000.
+> - Scrolling to `scrollTop = 40_000` shows rows starting at index 1000.
+> - `scrollToIndex(5000)` puts row 5000 at the top of the viewport.
+> - Variable heights: a row growing from 40 to 120 px shifts later rows without moving the rows currently in view.
+
 > [!TLDR]
 > Render only the rows intersecting the viewport (plus overscan) inside a spacer whose height equals the total list height; position rows with `transform: translateY`. For fixed heights, the visible range is `floor(scrollTop / rowHeight)` arithmetic. For variable heights, keep a prefix-sum of measured (or estimated) heights and binary-search the start index; measure rendered rows with `ResizeObserver` and correct the offsets. Watch out for scroll anchoring when measured heights differ from estimates.
 
@@ -356,6 +383,19 @@ tags: modal, dialog, focus management, accessibility, portals
 minutes: 30
 -->
 
+> [!PROMPT]
+> Build an accessible modal dialog component (title, body, actions) that works with nested modals and long content. Explain where the native `<dialog>` element helps and where it doesn't.
+>
+> **Requirements**
+> - Moves focus in on open and restores it to the trigger on close; traps Tab and Shift+Tab; Escape and backdrop click close it.
+> - Locks background scroll and makes the rest of the page inert for assistive tech; correct `role`, `aria-modal` and labelling.
+>
+> **Test cases**
+> - Open → focus is on the first focusable element; close → focus returns to the opening button.
+> - Tab from the last control wraps to the first; Shift+Tab from the first wraps to the last.
+> - Escape closes only the top modal when two are open.
+> - While open, `document.body` can't scroll and background content is not reachable by Tab.
+
 > [!TLDR]
 > A modal must: move focus inside on open (first field or the dialog itself), **trap** focus while open, close on Escape (and optionally backdrop click), make the background inert to keyboard and screen readers, prevent background scroll, restore focus to the trigger on close, and have an accessible name. The native `<dialog>` element with `showModal()` gives you top-layer rendering, inert background, focus handling and Escape for free; build on it rather than reimplementing.
 
@@ -460,6 +500,19 @@ level: senior
 tags: otp, inputs, paste, autofill, accessibility, machine coding
 minutes: 25
 -->
+
+> [!PROMPT]
+> Build a 6-digit one-time-password input made of single-character boxes. It must feel like one field: typing, deleting, pasting and mobile autofill all work, and it is accessible.
+>
+> **Requirements**
+> - Digits only; auto-advance on type; Backspace clears the current box or moves left; Arrow keys move focus.
+> - Paste a full code, SMS autofill (`autocomplete="one-time-code"`), `onComplete(code)` fires once.
+>
+> **Test cases**
+> - Typing `1`, `2`, `3` fills three boxes and focuses the fourth.
+> - Backspace on an empty box moves focus left and clears that box.
+> - Pasting `123456` fills all boxes and calls `onComplete('123456')` once; pasting `12ab56` keeps only the digits.
+> - Typing a letter is ignored; screen readers announce "Digit 3 of 6".
 
 > [!TLDR]
 > Model the value as one string, render N single-character inputs, and handle: typing (write char, move focus right), backspace (clear current or move left and clear), arrow keys, **paste of the full code** into any box, and mobile **SMS autofill** (`autocomplete="one-time-code"`, which delivers the whole code into one input). Accessibility: a group label, per-input labels like "Digit 3 of 6", and `inputmode="numeric"`. Many teams now prefer a single input with visual boxes, which makes autofill, paste and screen readers trivial.
@@ -568,6 +621,19 @@ tags: undo, redo, command pattern, history, state management, machine coding
 minutes: 30
 -->
 
+> [!PROMPT]
+> Add undo and redo to a simple drawing or text editor. Compare snapshots with the command pattern, then implement one of them, including a history limit and merging rapid edits.
+>
+> **Requirements**
+> - `undo`, `redo`, `canUndo`, `canRedo`, keyboard shortcuts (Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z).
+> - A new edit after undo clears the redo stack; typing bursts coalesce into one step; memory is bounded.
+>
+> **Test cases**
+> - Apply A, B, C then undo twice → state is A; redo once → state is B.
+> - Apply A, B, undo, apply D → `canRedo` is false and the history is A, D.
+> - Ten keystrokes within 500 ms create one undo step.
+> - With a history limit of 50, the 51st edit drops the oldest entry and undo never goes past it.
+
 > [!TLDR]
 > Two approaches. **Snapshots**: store past/present/future states; trivial with immutable state and structural sharing, but memory grows with state size. **Commands**: store operations with `apply`/`invert` (or patches); compact and works for collaboration, but each operation needs a correct inverse. Production details: coalesce rapid edits (typing) into one undo step, cap history length, clear the redo stack on a new edit, group multi-step actions in transactions, and decide what is **not** undoable (selection, scroll, server-confirmed side effects).
 
@@ -664,6 +730,19 @@ level: senior
 tags: infinite scroll, pagination, intersectionobserver, react query, machine coding
 minutes: 35
 -->
+
+> [!PROMPT]
+> Build an infinite feed for a social app: it loads the next page as the user nears the bottom, handles errors, avoids duplicates and keeps the scroll position when the user comes back.
+>
+> **Requirements**
+> - Cursor-based pagination, an `IntersectionObserver` sentinel with `rootMargin`, no duplicate requests.
+> - Error row with retry, an "end of feed" state, and scroll restoration on back navigation.
+>
+> **Test cases**
+> - Scrolling the sentinel into view requests the next page once, even if it intersects repeatedly while loading.
+> - A response containing an item that is already shown doesn't render it twice.
+> - A failed page shows a retry button; retrying loads the same cursor, not the next one.
+> - After navigating away and back, the list and scroll offset are restored; the last page shows "You're all caught up".
 
 > [!TLDR]
 > Use **cursor-based** pagination (stable under inserts), a sentinel element observed by `IntersectionObserver` with a `rootMargin` to prefetch before the user hits the bottom, one in-flight request at a time, deduplication by item id, explicit loading/error/end states, and a "Load more" button as an accessible fallback. Keep long feeds fast with virtualization, and restore scroll position when the user navigates back.
@@ -771,6 +850,19 @@ tags: timers, setinterval, drift, page visibility, machine coding
 minutes: 20
 -->
 
+> [!PROMPT]
+> Build a countdown (and a stopwatch) that stays accurate when the tab is in the background, the laptop sleeps or the main thread is busy. A naive `setInterval` version drifts by minutes in testing.
+>
+> **Requirements**
+> - Compute remaining time from a deadline using a monotonic clock, not by counting ticks.
+> - Start, pause, resume and reset; stop updating at zero and fire `onComplete` once; clean up on unmount.
+>
+> **Test cases** (fake timers and a controllable clock)
+> - A 10 s countdown after 3 s shows 7 s, even if only one tick happened in between.
+> - Pause at 4 s remaining, wait 5 s, resume → still 4 s remaining.
+> - Jumping the clock forward 30 s (sleep) shows 00:00 and calls `onComplete` exactly once.
+> - Unmounting during a run leaves no timers or listeners behind.
+
 > [!TLDR]
 > Never count ticks. Store a **deadline** (or start time) and compute remaining time from a monotonic clock each time you render: `remaining = deadline - performance.now()`. Timers drift and are throttled in background tabs (to ≥1s, sometimes minutes), so ticks are only a signal to re-render. Align ticks to second boundaries for a stable display, re-sync on `visibilitychange`, and for server-authoritative deadlines (auctions, seat holds), correct for client/server clock offset.
 
@@ -860,6 +952,19 @@ level: lead
 tags: uploads, progress, xhr, concurrency, retry, machine coding
 minutes: 35
 -->
+
+> [!PROMPT]
+> Build a multi-file uploader: drag and drop or pick files, upload at most 3 at a time with per-file progress, and let users cancel or retry individual files.
+>
+> **Requirements**
+> - Per-file state machine: queued, uploading (progress), done, failed, cancelled.
+> - A concurrency limit, `XMLHttpRequest` or `fetch` with progress, abort, retry with the same file, and file validation (size, type).
+>
+> **Test cases**
+> - Dropping 8 files starts 3 uploads; when one finishes the next queued file starts, never exceeding 3.
+> - Progress events update only that file's bar (0 → 100%).
+> - Cancelling an uploading file aborts its request and starts the next queued file; retrying a failed file requeues it.
+> - A 12 MB file with a 10 MB limit is rejected before any request is made.
 
 > [!TLDR]
 > Model each file as an upload item with its own state machine (queued → uploading(progress) → done | failed | cancelled). Run uploads through a concurrency-limited queue, track progress with `XMLHttpRequest.upload.onprogress` (fetch has no upload progress in most browsers), support cancel via `xhr.abort()`, retry failures with backoff, validate type/size before uploading, and for large files use presigned URLs with chunked/resumable uploads (S3 multipart, tus).

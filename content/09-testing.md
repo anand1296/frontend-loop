@@ -12,6 +12,14 @@ tags: testing strategy, testing trophy, unit tests, integration tests, e2e
 minutes: 15
 -->
 
+> [!PROMPT]
+> You join a product with 200 slow Cypress tests, almost no unit tests and frequent regressions. Design a testing strategy for a large frontend and a plan to get there.
+>
+> **Cover**
+> - The test pyramid (or trophy) for your stack: static checks, unit, component, integration, E2E, visual, accessibility.
+> - What each layer should and shouldn't test, test data and mocking policy, and CI speed budgets.
+> - How you handle flaky tests, ownership, and measuring whether the strategy works.
+
 > [!TLDR]
 > Optimize for **confidence per minute of CI and per hour of maintenance**. Static checks (TypeScript, ESLint) catch a whole class of bugs for free. Most behavior tests should be **integration-level component tests** (render a feature with real children, mock only the network) because they test what users do and survive refactors. Keep unit tests for pure logic with many edge cases. Keep a **thin** layer of E2E tests for critical journeys against a real deployed stack. Add visual and accessibility checks where regressions are likely, and measure flakiness as a first-class metric.
 
@@ -62,6 +70,14 @@ level: senior
 tags: testing library, user-event, queries, async, jest, vitest
 minutes: 15
 -->
+
+> [!PROMPT]
+> A test breaks every time someone changes a class name, and another passes while the button is actually unreachable by keyboard. Rewrite your approach using Testing Library principles.
+>
+> **Cover**
+> - Query priority (`getByRole` with name first) and why `getByTestId` is the last resort.
+> - `user-event` versus `fireEvent`, `findBy` and `waitFor`, and avoiding `act()` warnings properly.
+> - What not to test (implementation details, third-party internals) with an example of a good test.
 
 > [!TLDR]
 > Query the DOM the way users and assistive tech do: `getByRole` with an accessible name first, then label/text, and `getByTestId` only as a last resort. Interact with `userEvent` (realistic event sequences) rather than `fireEvent`. Wait for async UI with `findBy*` or `waitFor` (never arbitrary sleeps). Assert visible outcomes. If a component is hard to query by role, that's often an accessibility bug.
@@ -125,6 +141,14 @@ tags: msw, mocking, network, storybook, testing
 minutes: 12
 -->
 
+> [!PROMPT]
+> Your tests mock `fetch` with `jest.fn()`, so they pass even when the URL, method or payload is wrong. Introduce MSW and design a mocking setup shared by unit tests, Storybook and local development.
+>
+> **Cover**
+> - How MSW intercepts requests in Node and in the browser, and handlers versus per-test overrides.
+> - Testing loading, error, and slow-network states; asserting what was sent.
+> - Keeping mocks honest (typed handlers, contract tests against the real API).
+
 > [!TLDR]
 > Mock Service Worker intercepts requests at the network layer (a service worker in the browser, request interception in Node), so your app code runs unchanged: the real fetch client, headers, retries and error handling all execute. Define handlers once and reuse them in tests, Storybook and local development. Override per test for error and edge cases (500, 422, slow responses, empty lists).
 
@@ -187,6 +211,14 @@ tags: e2e, cypress, playwright, flaky tests, ci, parallelization
 minutes: 18
 -->
 
+> [!PROMPT]
+> Your E2E suite takes 60 minutes and fails randomly about 15% of the time, so engineers re-run until green. You have a quarter to fix it. Tell the story as an interview answer.
+>
+> **Cover**
+> - How you measured first (flake rate per test, slowest tests, causes).
+> - The fixes by cause: timing, shared state, environment, selectors; sharding, caching and test pruning.
+> - The result in numbers, and how you stopped it from getting worse again.
+
 > [!TLDR]
 > Flakiness comes from **timing assumptions** (fixed waits, racing the UI), **shared state** (tests depending on data from other tests or environments), **non-determinism** (time, randomness, animations, third parties), and **infrastructure** (slow/oversubscribed CI). Fix with web-first assertions that retry, per-test isolated data via API seeding, network control for third parties, deterministic clocks, and disabled animations. Cut CI time with parallel sharding balanced by historical duration, running only affected specs, caching installs/builds, and moving coverage down to faster integration tests.
 
@@ -246,6 +278,14 @@ tags: visual regression, chromatic, axe, accessibility testing, storybook
 minutes: 10
 -->
 
+> [!PROMPT]
+> Leadership wants visual regression tests and automated accessibility checks to "catch everything". Explain what each catches and misses, and set them up so they don't create noise.
+>
+> **Cover**
+> - Visual tests: component versus page snapshots, baselines, flakiness (fonts, animations, data), review workflow.
+> - Automated accessibility checks (axe, linting): roughly what share of issues they can find, and what needs manual testing.
+> - How these fit into CI and who approves changes.
+
 > [!TLDR]
 > Visual regression tests screenshot components or pages and diff them against approved baselines; they catch CSS and layout regressions no assertion would, but need stable rendering (fonts, animations, data) and a human review workflow. Automated accessibility checks (axe-core) catch a meaningful share of issues (estimates range from about a third of WCAG success criteria to over half of real-world issues by volume): missing names, contrast, invalid ARIA, landmarks. They can't judge whether focus order makes sense, alt text is meaningful, or a flow is usable with a screen reader; that still needs manual and assistive-tech testing.
 
@@ -298,6 +338,14 @@ level: senior
 tags: testing, hooks, fake timers, async, act, race conditions
 minutes: 12
 -->
+
+> [!PROMPT]
+> You must test a `useDebouncedSearch` hook (debounce, race handling, polling) and a component that fetches data. Tests are flaky and show "not wrapped in act(...)" warnings.
+>
+> **Cover**
+> - `renderHook` versus testing through a component; fake timers with `act` and `advanceTimersByTime`.
+> - Asserting on async UI (`findBy`, `waitFor`), testing race conditions deterministically, and mocking the network.
+> - What the `act()` warning means and how to fix the cause instead of silencing it.
 
 > [!TLDR]
 > Test hooks through a component when possible; use `renderHook` for hooks with real logic. For timers (debounce, polling, countdowns), use fake timers and advance them explicitly, and tell `user-event` about them (`advanceTimers`). For races, control promise resolution order with deferred promises or MSW delays, and assert that the stale response doesn't win. `act()` warnings mean an update happened outside what the test awaited: await the visible result instead of silencing the warning.

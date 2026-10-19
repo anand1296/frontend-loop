@@ -178,6 +178,13 @@ function SyncDialog({ open, onClose, onSynced }: { open: boolean; onClose: () =>
             </li>
           </ul>
         ) : null}
+        {plan && nothingNew && plan.changedQuestions.length > 0 ? (
+          <p className="admin-note">
+            Nothing new to add, but {plural(plan.changedQuestions.length, 'question')} changed in the repository since they were saved here (or were edited
+            in the console). If you haven't edited them here, choose <strong>Overwrite changed…</strong> to bring them up to date; the previous versions stay
+            in each question's history.
+          </p>
+        ) : null}
         <FlashLine flash={flash} />
         <div className="button-row">
           <button type="button" className="btn btn-primary" disabled={busy || !plan || nothingNew} onClick={() => void apply(false)}>

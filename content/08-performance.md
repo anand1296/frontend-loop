@@ -12,6 +12,14 @@ tags: core web vitals, lcp, inp, cls, field data, performance
 minutes: 20
 -->
 
+> [!PROMPT]
+> A product page has LCP 4.8 s, INP 420 ms and CLS 0.31 on mobile field data. You have one week. Describe how you diagnose each metric and what you change first.
+>
+> **Cover**
+> - For each metric: the tools you open, the breakdown you look for (LCP subparts, long tasks and input delay, layout shift sources).
+> - The likely fixes in order of payoff, and how you avoid regressions.
+> - How you verify with both lab and field data, and what targets you'd set.
+
 > [!TLDR]
 > **LCP** (largest contentful paint, good ≤ 2.5s) is about getting the main content's bytes early and rendering it immediately. **INP** (interaction to next paint, good ≤ 200ms) is about short main-thread work around interactions. **CLS** (cumulative layout shift, good ≤ 0.1) is about reserving space. Start from **field data** at the 75th percentile (CrUX, RUM), break each metric into its sub-parts to find the bottleneck, fix the biggest part, and verify in the field.
 
@@ -86,6 +94,14 @@ tags: inp, long tasks, scheduler.yield, loaf, react, performance
 minutes: 18
 -->
 
+> [!PROMPT]
+> Users report that clicking "Add to cart" feels sticky: INP is 380 ms at the 75th percentile. The click handler updates React state, which re-renders a large list and runs analytics.
+>
+> **Cover**
+> - The three parts of an interaction (input delay, processing, presentation delay) and how to see each in a trace.
+> - Fixes: yielding to the main thread, `startTransition`, deferring analytics, reducing renders, and avoiding layout thrash.
+> - How you measure in the field (`web-vitals` attribution) and what threshold you commit to.
+
 > [!TLDR]
 > INP reports (roughly) the worst interaction latency of a page visit: input delay + processing time + presentation delay until the next frame paints. Find slow interactions with RUM attribution and the Long Animation Frames API, then fix the dominant part: reduce **input delay** by breaking up long tasks that happen to be running, reduce **processing** by doing less in handlers and yielding after the urgent UI update, and reduce **presentation delay** by rendering less DOM (smaller React updates, virtualization, `content-visibility`).
 
@@ -143,6 +159,14 @@ level: lead
 tags: bundling, code splitting, tree shaking, vite, webpack, performance budgets
 minutes: 15
 -->
+
+> [!PROMPT]
+> The main bundle is 1.4 MB gzip and keeps growing. Design a bundle strategy for a large React app: where to split, how to share vendor code, and how to stop regressions.
+>
+> **Cover**
+> - Route-level and interaction-level code splitting; prefetching on intent.
+> - Diagnosing the bundle (visualizer, duplicate packages), tree-shaking failures (side effects, barrel files, CJS) and polyfills.
+> - Budgets in CI and ownership, so the number doesn't creep back up.
 
 > [!TLDR]
 > Split by **route** first (each page loads only its code), then by **interaction** (heavy features loaded on demand: editors, charts, PDF export), and keep a stable **vendor/framework** chunk so it stays cached across deploys. Measure with a bundle analyzer, hunt tree-shaking failures (CommonJS deps, side-effectful barrels, whole-library imports), set per-entry size budgets in CI, and prefetch the next likely chunk on intent so splitting doesn't make navigation slower.
@@ -216,6 +240,14 @@ tags: images, fonts, avif, srcset, lazy loading, font-display, cls
 minutes: 12
 -->
 
+> [!PROMPT]
+> A marketing page loads 6 MB of images, shifts layout when fonts load, and its hero image is the LCP element. Fix images and fonts.
+>
+> **Cover**
+> - Formats (AVIF/WebP), `srcset` and `sizes`, explicit dimensions, lazy loading and `fetchpriority`.
+> - Font loading: subsetting, `font-display`, preload, and metric-compatible fallbacks to avoid layout shift.
+> - A checklist you'd enforce in review or CI.
+
 > [!TLDR]
 > Images: serve modern formats (AVIF/WebP) at the size actually displayed (`srcset` + `sizes`), always declare dimensions, lazy-load below the fold, and prioritize the LCP image. Fonts: self-host WOFF2, subset, preload only the one or two critical faces, choose `font-display` deliberately (`swap` for brand text with metric-matched fallbacks, `optional` when layout stability matters most), and limit the number of weights (variable fonts help).
 
@@ -285,6 +317,14 @@ tags: profiling, react devtools, performance panel, rerenders, debugging
 minutes: 15
 -->
 
+> [!PROMPT]
+> Your team says "the app is slow" and wants to wrap everything in `memo`. Describe a repeatable workflow for finding and fixing a React performance problem.
+>
+> **Cover**
+> - Reproducing reliably (CPU throttling, a specific interaction) and deciding whether it is scripting, rendering or layout.
+> - Using the React Profiler and the browser Performance panel; reading flame charts and "why did this render".
+> - Fixing the biggest cost first, proving the improvement and keeping a regression test or budget.
+
 > [!TLDR]
 > Reproduce the slow interaction on a throttled CPU, record it in the browser Performance panel to see whether time goes to scripting, rendering or layout, then use the React DevTools Profiler to find **which components** rendered, **why**, and how long they took. Fix the top offender, re-measure the same scenario, and lock the improvement in with a benchmark or interaction test. Never optimize from a hunch.
 
@@ -337,6 +377,14 @@ tags: rum, lighthouse ci, performance budgets, observability, regression
 minutes: 12
 -->
 
+> [!PROMPT]
+> Leadership wants "no performance regressions" after a redesign. Lighthouse in CI is flaky and field data shows different numbers than the lab. Design the measurement and enforcement setup.
+>
+> **Cover**
+> - Lab versus field data, and why they disagree; RUM with the `web-vitals` library and segmentation.
+> - Budgets that can gate a pull request without flakiness (bundle size, lab metrics on stable runners), and alerts for field data.
+> - Ownership: who is paged, how regressions are triaged, how budgets change.
+
 > [!TLDR]
 > Field data (RUM, CrUX) tells you what users experience; lab data (Lighthouse, WebPageTest, Playwright traces) gives reproducible numbers to debug and to gate PRs. A mature setup has both: per-PR lab budgets on bundle size and key metrics (with tolerance for noise), RUM dashboards segmented by route/device/release with alerting on p75 regressions, and a release annotation so a regression maps to a deploy.
 
@@ -378,6 +426,14 @@ level: senior
 tags: perceived performance, skeletons, optimistic ui, prefetch, view transitions
 minutes: 12
 -->
+
+> [!PROMPT]
+> A dashboard takes 1.2 s to load data, and users say it feels slow while a competitor with similar timings feels instant. Improve perceived performance without changing the backend.
+>
+> **Cover**
+> - Immediate feedback, skeletons versus spinners, optimistic updates and their rollback rules.
+> - Prefetching on intent (hover, viewport), view transitions and keeping content stable.
+> - How you measure perception (INP, time to useful content, user research) and when these tricks backfire.
 
 > [!TLDR]
 > Users judge speed by **feedback and continuity**, not just milliseconds. Respond to every interaction within ~100ms (pressed states, optimistic updates), show layout-stable skeletons instead of spinners for content, keep old content visible during transitions instead of blanking the page, prefetch data and code when users show intent (hover, focus, viewport), and use view transitions to make navigations feel connected. None of this replaces real speed; it makes good speed feel great and slow moments tolerable.

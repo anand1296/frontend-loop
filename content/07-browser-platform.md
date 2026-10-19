@@ -12,6 +12,14 @@ tags: rendering, layout, paint, compositing, layout thrashing, css
 minutes: 15
 -->
 
+> [!PROMPT]
+> A landing page shows a blank screen for two seconds on slow 4G, then everything appears at once. You are asked to explain what the browser is doing and what you'd change.
+>
+> **Cover**
+> - The pipeline from bytes to pixels (DOM, CSSOM, render tree, layout, paint, composite) and what blocks what.
+> - Which CSS and JS patterns are render-blocking, and the effect of `async`, `defer`, and `type="module"`.
+> - Which style changes trigger layout versus paint versus only compositing, with examples.
+
 > [!TLDR]
 > HTML is parsed into the DOM, CSS into the CSSOM; together they produce the render tree. **Style** computes styles, **layout** computes geometry, **paint** records drawing commands into layers, and **composite** assembles layers on the GPU. Changing geometry (width, top, font-size) triggers layout + paint + composite; changing colors triggers paint + composite; changing `transform` and `opacity` on a composited layer can skip to composite only. Reading layout (`offsetHeight`, `getBoundingClientRect`) after writing styles forces synchronous layout, and doing that in a loop is **layout thrashing**.
 
@@ -79,6 +87,14 @@ level: senior
 tags: http caching, cache-control, etag, cdn, deployment
 minutes: 15
 -->
+
+> [!PROMPT]
+> After a deploy, some users keep seeing the old version of your SPA for days, while others download the 800 KB bundle on every visit. Design the caching headers for HTML, hashed assets, API responses and the CDN.
+>
+> **Cover**
+> - `Cache-Control` for `index.html` versus fingerprinted files (`immutable`), and why ETags alone aren't enough.
+> - `stale-while-revalidate`, `Vary`, and CDN cache keys; cache invalidation on deploy.
+> - How to debug what is cached (DevTools, `Age` header), and the failure mode of a cached `index.html` pointing to deleted chunks.
 
 > [!TLDR]
 > Fingerprint every build asset (`app.3f9a1c.js`) and serve it with `Cache-Control: public, max-age=31536000, immutable`, so browsers and CDNs never revalidate. Serve the HTML entry point with `Cache-Control: no-cache` (store, but revalidate every time with ETag/Last-Modified), so a deploy is picked up on the next load. APIs choose per endpoint: `private`, short `max-age`, `stale-while-revalidate`, or `no-store` for sensitive data. Most "users still see the old version" bugs come from a cached `index.html` referencing old chunks.
@@ -149,6 +165,14 @@ tags: cors, preflight, credentials, security, http
 minutes: 12
 -->
 
+> [!PROMPT]
+> Your SPA at `app.example.com` calls an API at `api.example.com` and the browser blocks a `PUT` request with a JSON body, but a simple `GET` works. A backend dev "fixed it" with `Access-Control-Allow-Origin: *` and now cookies stopped working.
+>
+> **Cover**
+> - What makes a request simple or preflighted, and the exact preflight request and response headers.
+> - Why credentials need an explicit origin (not `*`) and `Allow-Credentials`, plus `Vary: Origin`.
+> - Common misconfigurations, and what CORS does not protect against.
+
 > [!TLDR]
 > CORS is the browser relaxing the **same-origin policy** when a server opts in with response headers. "Simple" requests (GET/HEAD/POST with safelisted headers and content types) are sent directly, and the browser hides the response unless `Access-Control-Allow-Origin` matches. Anything else (JSON `Content-Type`, `Authorization`, PUT/DELETE, custom headers) first sends an `OPTIONS` **preflight**. Credentialed requests require an exact origin (no `*`) plus `Access-Control-Allow-Credentials: true`. CORS protects users' data in browsers; it's not an authentication mechanism and doesn't stop curl.
 
@@ -201,6 +225,14 @@ level: lead
 tags: preload, preconnect, fetchpriority, resource hints, lcp
 minutes: 12
 -->
+
+> [!PROMPT]
+> Your product page has an LCP hero image, a web font, a third-party analytics script and a lazy-loaded carousel, and Lighthouse says the LCP image starts downloading late. Decide how to use `preload`, `preconnect`, `modulepreload` and `fetchpriority`.
+>
+> **Cover**
+> - How the browser assigns priorities and where it guesses wrong.
+> - For each resource, the hint you'd add (or remove) and why; the cost of over-hinting.
+> - How you verify the change (waterfall, `Priority` column, LCP breakdown) rather than trusting it.
 
 > [!TLDR]
 > The browser assigns priorities by resource type and position; your job is to fix its blind spots. `preconnect` warms up DNS/TCP/TLS to critical third-party origins. `preload` fetches a resource discovered late (fonts, LCP background image, critical data) without executing it. `modulepreload` fetches and parses JS modules ahead of an import chain. `fetchpriority="high"` boosts the LCP image; `"low"` demotes carousels and below-the-fold assets. Every hint competes for bandwidth, so use few and verify with a waterfall.
@@ -261,6 +293,14 @@ level: lead
 tags: service worker, pwa, offline, caching strategies, workbox
 minutes: 18
 -->
+
+> [!PROMPT]
+> You are adding offline support to a news PWA. After the first release some users are stuck on an old version, and one user sees a blank page after a deploy. Design the service worker strategy and update flow.
+>
+> **Cover**
+> - Strategy per resource: cache-first for hashed assets, network-first or stale-while-revalidate for content, precache versus runtime cache.
+> - The lifecycle (install, waiting, activate, `skipWaiting`, `clients.claim`) and a safe "update available" prompt.
+> - The bugs you must plan for: cached `index.html`, cache growth, opaque responses, and a kill-switch worker.
 
 > [!TLDR]
 > A service worker is a programmable network proxy that runs separately from your pages. Strategies: **cache-first** for hashed static assets, **network-first** for HTML/API that must be fresh (fall back to cache offline), **stale-while-revalidate** for things that can be slightly old. The lifecycle (install → waiting → activate → controlling) means a new SW **waits** until all tabs using the old one close; that's the root of "users stuck on an old version". Handle updates explicitly with a "Reload to update" prompt, and always ship a kill switch.
@@ -342,6 +382,14 @@ tags: storage, indexeddb, localstorage, cookies, opfs, broadcastchannel
 minutes: 12
 -->
 
+> [!PROMPT]
+> You are designing client persistence for a notes app that works offline: auth session, UI preferences, 50 MB of notes and attachments, and state shared between tabs. Choose where each piece lives.
+>
+> **Cover**
+> - Cookies, `localStorage`, `sessionStorage`, IndexedDB, Cache API and OPFS: capacity, sync or async, who can read it.
+> - Cross-tab sync (`storage` event, `BroadcastChannel`, locks), quota errors and eviction, and `navigator.storage.persist()`.
+> - What must never be stored client-side, and migration of stored data between versions.
+
 > [!TLDR]
 > Cookies: small, sent with every request, for server sessions (`HttpOnly`, `Secure`, `SameSite`). `localStorage`: tiny synchronous key-value strings, fine for preferences, bad for large or frequent writes. IndexedDB: async, transactional, large structured data and blobs; the backbone of offline apps (use a wrapper like `idb` or Dexie). OPFS: fast file storage, great with SQLite-in-WASM. Cache API: request/response pairs for service workers. Sync tabs with the `storage` event (localStorage) or `BroadcastChannel`; coordinate writers with Web Locks.
 
@@ -398,6 +446,14 @@ level: lead
 tags: web workers, comlink, transferables, performance, inp
 minutes: 15
 -->
+
+> [!PROMPT]
+> A CSV import in your app freezes the UI for 4 seconds while parsing 200,000 rows and building a search index. Move it off the main thread.
+>
+> **Cover**
+> - What belongs in a worker (CPU-bound, no DOM) and what doesn't.
+> - Message passing, structured clone costs, `Transferable` objects and `SharedArrayBuffer` (with its isolation requirements).
+> - Progress reporting, cancellation, error handling, worker pools, and how to test and bundle workers.
 
 > [!TLDR]
 > Move CPU-heavy work that doesn't need the DOM to a Worker: parsing/transforming large JSON or CSV, search indexing, diffing, image processing, syntax highlighting, crypto, WASM. The main thread stays free for input and rendering, which directly improves INP. Communicate with `postMessage` (structured clone), avoid copying big buffers by **transferring** them, wrap the protocol with Comlink for RPC ergonomics, and keep messages coarse because each crossing has a cost.

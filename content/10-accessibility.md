@@ -12,6 +12,14 @@ tags: aria, semantic html, accessible name, roles, wcag
 minutes: 12
 -->
 
+> [!PROMPT]
+> A teammate builds a custom dropdown from `div`s with `role="button"` and `aria-label` on everything, and a screen reader announces it badly. Review it using the rules of ARIA.
+>
+> **Cover**
+> - The five rules of ARIA, with "no ARIA is better than bad ARIA" in practice.
+> - Roles, states and properties: what each does (and doesn't) change, including accessible name computation.
+> - Replacing the custom pieces with native elements, and when ARIA is genuinely needed.
+
 > [!TLDR]
 > Use native HTML elements whenever one exists (`<button>`, `<a href>`, `<input>`, `<dialog>`, `<details>`): they come with roles, keyboard behavior and states for free. ARIA only changes what assistive technology is **told**; it adds no behavior. When you do use ARIA, a role is a promise to implement the matching keyboard interaction and states. Every interactive element needs an **accessible name**, computed from content, `aria-labelledby`, `aria-label`, `<label>`, or `alt`/`title` in that rough priority.
 
@@ -78,6 +86,14 @@ tags: focus management, spa routing, keyboard, screen readers, accessibility
 minutes: 12
 -->
 
+> [!PROMPT]
+> In your SPA, after navigating to a new route keyboard focus stays on the old link, deleting a list item sends focus to the top of the page, and a modal doesn't return focus when closed. Fix focus management across these cases.
+>
+> **Cover**
+> - Route change: moving focus (to heading or main), updating `document.title` and announcing the new page.
+> - Deletions, dialogs, and menus: where focus goes and why.
+> - Skip links, `focus-visible`, and testing with only a keyboard and a screen reader.
+
 > [!TLDR]
 > In a multi-page site the browser resets focus on navigation and screen readers announce the new page; SPAs must do this themselves. On route change: update `document.title`, move focus to the main heading (or main region) with `tabIndex={-1}`, and optionally announce via a live region. For modals: focus inside on open, return focus to the trigger on close. When the focused element disappears (deleted row, closed menu), move focus to a logical neighbor. Provide a skip link to the main content.
 
@@ -143,6 +159,14 @@ level: lead
 tags: keyboard navigation, roving tabindex, aria-activedescendant, composite widgets
 minutes: 15
 -->
+
+> [!PROMPT]
+> Implement keyboard behavior for a toolbar of 6 buttons and for a listbox with 100 options. Choose between roving `tabindex` and `aria-activedescendant` for each, and justify it.
+>
+> **Cover**
+> - One Tab stop per composite widget, arrow keys inside, Home/End, wrapping behavior.
+> - How each technique moves focus and what screen readers announce; the trade-offs for virtualization and for text inputs.
+> - Behavior checks: Tab leaves the widget, Shift+Tab returns to the last active item.
 
 > [!TLDR]
 > Composite widgets (tabs, menus, toolbars, listboxes, grids, trees) should be **one Tab stop**, with arrow keys moving within them. Two techniques: **roving tabindex** (the active item has `tabIndex=0`, the rest `-1`, and DOM focus moves between items) and **`aria-activedescendant`** (DOM focus stays on a container or input, which points at the active item by id). Use roving tabindex for most widgets; use activedescendant when focus must stay in an input (combobox) or items are virtualized.
@@ -225,6 +249,14 @@ tags: aria-live, status messages, toasts, screen readers, accessibility
 minutes: 10
 -->
 
+> [!PROMPT]
+> Your app shows toasts, form errors, a "3 results found" count after filtering and a chat feed. Screen reader users miss most of them, and one region announces everything twice.
+>
+> **Cover**
+> - `aria-live` polite versus assertive, `role="status"`, `role="alert"`, and why the region must exist before its content changes.
+> - Designing accessible toasts (duration, focus, dismissal) and result counts.
+> - Common failures (re-rendering the region, too many announcements) and how to test with a screen reader.
+
 > [!TLDR]
 > Screen readers don't notice DOM changes unless told. A **live region** (`aria-live="polite"`, `role="status"`, or `role="alert"` for urgent messages) announces content inserted into it. The region must **already exist** in the DOM before the content changes; inject text into it rather than mounting a new region with text. Keep messages short, don't announce on every keystroke, and don't put interactive content (Undo buttons) only in a toast that disappears.
 
@@ -283,6 +315,14 @@ level: senior
 tags: forms, labels, validation, errors, accessibility, wcag
 minutes: 12
 -->
+
+> [!PROMPT]
+> Audit and fix a checkout form: placeholders used as labels, errors shown only in red below the field, an error summary missing, and the form validates on every keystroke.
+>
+> **Cover**
+> - Labels, descriptions and errors tied to fields (`label`, `aria-describedby`, `aria-invalid`), grouping with `fieldset`.
+> - Validation timing and the error summary pattern with focus management.
+> - `autocomplete` tokens, input types, required indicators, and a quick manual test plan.
 
 > [!TLDR]
 > Every field needs a visible `<label>` associated by `for`/`id`; hints and errors are linked with `aria-describedby`; invalid fields get `aria-invalid="true"`. Group related controls with `<fieldset>`/`<legend>`. Validate on blur or submit (not on every keystroke from the first character), and on submit with errors either focus the first invalid field or show an **error summary** at the top with links to each field. Never rely on color alone, and keep the user's input.
@@ -355,6 +395,14 @@ level: principal
 tags: accessibility program, design systems, governance, wcag, ci
 minutes: 12
 -->
+
+> [!PROMPT]
+> You are the principal engineer for a product with 50 engineers and recurring accessibility regressions. Leadership asks for a plan to make accessibility stick, not another one-off audit.
+>
+> **Cover**
+> - Prevention: accessible design-system primitives, lint rules, and code review checklists.
+> - Detection: CI checks, manual audit cadence, assistive-technology testing, and metrics that matter.
+> - People and process: training, ownership, how issues are triaged against the roadmap.
 
 > [!TLDR]
 > Accessibility at scale is a **system**, not heroics. Bake it into the design system (accessible primitives so product teams can't easily get it wrong), automate the detectable 30–50% (lint, axe in component/E2E tests, Storybook checks), make manual testing a routine part of definition-of-done for new patterns, track issues like any other quality metric with owners and SLAs, and train designers and PMs, not just engineers. Set a clear target (WCAG 2.2 AA) and report progress.
