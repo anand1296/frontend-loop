@@ -123,9 +123,9 @@ func TestFrameworkContainers(t *testing.T) {
 func TestFrameworkContainerErrors(t *testing.T) {
 	r := New()
 	for source, want := range map[string]string{
-		":::svelte\ntext\n:::":          "unknown framework",
-		":::vue\ntext":                  "never closed",
-		":::":                            "closes nothing",
+		":::svelte\ntext\n:::":             "unknown framework",
+		":::vue\ntext":                     "never closed",
+		":::":                              "closes nothing",
 		":::vue\n:::react\ntext\n:::\n:::": "cannot nest",
 	} {
 		_, err := r.Render(source)
