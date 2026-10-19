@@ -25,7 +25,7 @@ import { join } from 'node:path';
 import { ContentError, parseKeyValueBlock, requireField, splitFrontmatter } from '../content/frontmatter.ts';
 import { createMarkdownRenderer } from '../content/markdown.ts';
 
-export const REPO_URL = 'https://github.com/anand1296/frontend-loop';
+export const REPO_URL = 'https://github.com/anand1296/whetstone';
 
 export interface WalkthroughMeta {
   id: string;

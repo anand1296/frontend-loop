@@ -15,7 +15,7 @@ import { launchStore } from '../../platform/launch.ts';
 import { useStore } from '../../state/useStore.ts';
 import { SignInOptions } from './Account.tsx';
 
-const DEPLOY_GUIDE = 'https://github.com/anand1296/frontend-loop/blob/main/docs/DEPLOYMENT.md';
+const DEPLOY_GUIDE = 'https://github.com/anand1296/whetstone/blob/main/docs/DEPLOYMENT.md';
 const DEPLOYMENT_SECTION = `${DEPLOY_GUIDE}#13-create-a-github-oauth-app`;
 
 function InviteNote({ token }: { token: string }) {

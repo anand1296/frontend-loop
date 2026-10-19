@@ -17,7 +17,7 @@ type Config struct {
 	GitHubClientSecret string
 	// OwnerLogin is the GitHub login that is always the super admin.
 	OwnerLogin string
-	// PublicURL is the app's canonical origin, e.g. https://frontend-loop.vercel.app.
+	// PublicURL is the app's canonical origin, e.g. https://whetstone.vercel.app.
 	// Used for the OAuth callback and the Origin check. Derived from the request when empty.
 	PublicURL string
 	// DevLogin enables password-less sign-in for local development and E2E tests.

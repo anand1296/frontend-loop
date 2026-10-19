@@ -2,7 +2,7 @@ package server
 
 // Integration tests: real HTTP against a real Postgres.
 //
-//	TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/frontend_loop_test?sslmode=disable go test ./backend/...
+//	TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/whetstone_test?sslmode=disable go test ./backend/...
 //
 // Each test gets a freshly migrated, seeded schema. Skipped when TEST_DATABASE_URL is unset.
 
@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/auth"
-	"github.com/anand1296/frontend-loop/backend/catalog"
-	"github.com/anand1296/frontend-loop/backend/mail"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/auth"
+	"github.com/anand1296/whetstone/backend/catalog"
+	"github.com/anand1296/whetstone/backend/mail"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 const goodBody = "> [!TLDR]\n> A complete sixty second answer that says the important thing clearly and briefly.\n\n" +

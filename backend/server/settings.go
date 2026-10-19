@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/anand1296/frontend-loop/backend/markdown"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/markdown"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 // Site holds deployment-wide settings the owner controls.

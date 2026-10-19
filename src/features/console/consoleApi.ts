@@ -230,7 +230,7 @@ export const consoleApi = {
   syncPlan: () => api<SyncPlan>('/admin/sync'),
   applySync: (overwrite: boolean) => api<SyncPlan>('/admin/sync', json('POST', { overwrite })),
   exportSection: (id: string) => downloadFrom(`/admin/sections/${encodeURIComponent(id)}/export`, `${id}.md`),
-  exportAll: () => downloadFrom('/admin/export', 'frontend-loop-content.zip'),
+  exportAll: () => downloadFrom('/admin/export', 'whetstone-content.zip'),
 
   submissions: (status: SubmissionStatus | 'all' = 'pending') => api<Submission[]>(`/admin/submissions?status=${status}`),
   approveSubmission: (id: number, question: QuestionInput, note: string) =>

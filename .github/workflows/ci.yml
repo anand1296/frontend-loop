@@ -35,8 +35,8 @@ jobs:
           npm run test:e2e
       - uses: actions/upload-artifact@v4
         with:
-          name: frontend-loop-single-file
-          path: dist-single/frontend-loop.html
+          name: whetstone-single-file
+          path: dist-single/whetstone.html
 
   # Backend: formatting, vet, unit + integration tests against a real Postgres,
   # and the parity test that compares the Go and TypeScript Markdown renderers.
@@ -47,7 +47,7 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: frontend_loop_test
+          POSTGRES_DB: whetstone_test
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 20
@@ -68,7 +68,7 @@ jobs:
         run: node scripts/check-content.ts --emit "$RUNNER_TEMP/static.json"
       - name: go test (with Postgres and parity)
         env:
-          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/frontend_loop_test?sslmode=disable
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/whetstone_test?sslmode=disable
         run: PARITY_FIXTURE="$RUNNER_TEMP/static.json" go test -race -count=1 ./...
       - name: Build server binary
         run: go build -o /tmp/server ./cmd/server
@@ -82,7 +82,7 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: frontend_loop
+          POSTGRES_DB: whetstone
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 20
@@ -98,7 +98,7 @@ jobs:
       - run: npx vite build
       - name: Start the Go server
         env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/frontend_loop?sslmode=disable
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/whetstone?sslmode=disable
           OWNER_GITHUB_LOGIN: anand1296
           DEV_LOGIN: '1'
         run: |

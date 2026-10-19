@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/anand1296/frontend-loop/backend/catalog"
-	"github.com/anand1296/frontend-loop/backend/mail"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/catalog"
+	"github.com/anand1296/whetstone/backend/mail"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 // Community question submissions: any signed-in person proposes a question

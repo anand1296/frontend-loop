@@ -202,7 +202,7 @@ async function fetchBootstrap(timeoutMs: number): Promise<Record<string, unknown
   }
 }
 
-const OFFLINE_KEY = 'frontend-loop:study-offline';
+const OFFLINE_KEY = 'whetstone:study-offline';
 
 function parseSetup(body: unknown): SetupInfo | null {
   if (!isRecord(body) || !isRecord(body.setup) || !isRecord(body.error)) return null;

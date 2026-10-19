@@ -18,9 +18,9 @@ The repository is already set up for Vercel: `vercel.json` builds the Vite front
 
 ### 1.1 Import the project (once)
 
-1. vercel.com → **Add New… → Project** → import `anand1296/frontend-loop`.
+1. vercel.com → **Add New… → Project** → import `anand1296/whetstone`.
 2. Keep the detected settings (framework Vite; build and output come from `vercel.json`). **Deploy.**
-3. Note the production URL, e.g. `https://frontend-loop.vercel.app`. Opening it now shows **"Almost there: connect the backend"**: a checklist of which settings are present (the API answers `503 not_configured`). Anyone can still click *Study offline for now*, but nothing syncs and there's no sign-in until the steps below are done.
+3. Note the production URL, e.g. `https://whetstone.vercel.app`. Opening it now shows **"Almost there: connect the backend"**: a checklist of which settings are present (the API answers `503 not_configured`). Anyone can still click *Study offline for now*, but nothing syncs and there's no sign-in until the steps below are done.
 
 ### 1.2 Add a free Postgres database (Neon)
 
@@ -125,25 +125,25 @@ docker compose up --build         # http://localhost:8080 (frontend + API + Post
 
 ```bash
 npm run check                                     # content + types + TS unit tests
-docker compose exec db createdb -U postgres frontend_loop_test   # once
-TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/frontend_loop_test?sslmode=disable npm run test:go
+docker compose exec db createdb -U postgres whetstone_test   # once
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/whetstone_test?sslmode=disable npm run test:go
 npm run build && npm run test:e2e                 # static-mode E2E
 # full stack E2E: fresh DB, server serving the build with DEV_LOGIN=1, then
 E2E_SERVER_URL=http://localhost:8080 npm run test:e2e:server
 ```
 
-The Go integration tests drop and recreate the `public` schema of the database you point them at: always use a separate test database like `frontend_loop_test`, never your development or production one.
+The Go integration tests drop and recreate the `public` schema of the database you point them at: always use a separate test database like `whetstone_test`, never your development or production one.
 
 ---
 
 ## 3. Docker / binary anywhere
 
 ```bash
-docker build -t frontend-loop .
+docker build -t whetstone .
 docker run -p 8080:8080 \
   -e DATABASE_URL=postgres://… -e OWNER_GITHUB_LOGIN=anand1296 \
   -e GITHUB_CLIENT_ID=… -e GITHUB_CLIENT_SECRET=… -e APP_URL=https://your.domain \
-  frontend-loop
+  whetstone
 ```
 
 The image is distroless, runs as non-root and contains one static binary plus the built frontend. Put it behind HTTPS (a load balancer or reverse proxy) and set `TRUST_PROXY=1` so forwarded headers are honored. The same image is the starting point for AWS ECS/Fargate (docs/SPEC.md §18).
@@ -152,4 +152,4 @@ The image is distroless, runs as non-root and contains one static binary plus th
 
 ## 4. Static only
 
-`npm run build` → host `dist/` anywhere (Netlify, GitHub Pages via `.github/workflows/deploy-pages.yml`, S3). `npm run build:single` → one self-contained HTML file (`dist-single/frontend-loop.html`), and `artifact.html` for claude.ai Artifacts. No backend, no accounts; progress stays in the browser.
+`npm run build` → host `dist/` anywhere (Netlify, GitHub Pages via `.github/workflows/deploy-pages.yml`, S3). `npm run build:single` → one self-contained HTML file (`dist-single/whetstone.html`), and `artifact.html` for claude.ai Artifacts. No backend, no accounts; progress stays in the browser.

@@ -253,7 +253,7 @@ Self-hosted, the Go binary serves both `dist/` and `/api/*` (`cmd/server`).
 ### 5.2 Repository layout
 
 ```text
-frontend-loop/
+whetstone/
 ├─ content/               Markdown question bank (seed + export format) and embed.go (go:embed)
 ├─ src/                   React app (TypeScript)
 │  ├─ app/                shell, sidebar
@@ -340,7 +340,7 @@ Components read content with `useContent()` and flags with `useFeature(key)` / `
 
 Rules: debounced writes (1.2 s), one write in flight, skip writes when local equals remote, flush on tab hide, terminal errors (401/403/400) stop syncing and show the status. A snapshot that arrives during a write is newer than the written state, so it is not overwritten (prevents a redundant second write).
 
-Account hygiene: the browser remembers which user id its local copy belongs to (`frontend-loop:progress-owner`). A different account signing in starts from its own server copy; signing out flushes then clears the local copy.
+Account hygiene: the browser remembers which user id its local copy belongs to (`whetstone:progress-owner`). A different account signing in starts from its own server copy; signing out flushes then clears the local copy.
 
 ### 6.4 Admin console
 
@@ -459,7 +459,7 @@ Every content write increments `settings.content_version` in the same transactio
 
 ## 9. API reference
 
-All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **Every non-GET request must send `X-Requested-With: frontend-loop`.** Errors use the shape in §7.1.
+All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **Every non-GET request must send `X-Requested-With: whetstone`.** Errors use the shape in §7.1.
 
 ### 9.1 Public and learner
 

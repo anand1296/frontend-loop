@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/progress"
+	"github.com/anand1296/whetstone/backend/progress"
 )
 
 var now = time.Date(2026, 10, 17, 3, 30, 0, 0, time.UTC)

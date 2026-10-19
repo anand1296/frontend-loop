@@ -16,8 +16,8 @@ import (
 	texttemplate "text/template"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/mail"
-	"github.com/anand1296/frontend-loop/backend/progress"
+	"github.com/anand1296/whetstone/backend/mail"
+	"github.com/anand1296/whetstone/backend/progress"
 )
 
 // Frequencies a user can choose, in display order.
@@ -51,7 +51,7 @@ type Input struct {
 	Name           string
 	Email          string
 	SiteName       string
-	AppURL         string // e.g. https://frontend-loop.vercel.app (no trailing slash)
+	AppURL         string // e.g. https://whetstone.vercel.app (no trailing slash)
 	UnsubscribeURL string
 	Frequency      string
 	Doc            progress.Doc

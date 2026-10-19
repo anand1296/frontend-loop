@@ -18,7 +18,7 @@ export interface Prefs {
   level: LevelFilter;
 }
 
-const PREFS_KEY = 'frontend-loop:prefs:v1';
+const PREFS_KEY = 'whetstone:prefs:v1';
 
 export const DEFAULT_PREFS: Prefs = { theme: 'system', practiceMode: false, status: 'all', level: 'all' };
 

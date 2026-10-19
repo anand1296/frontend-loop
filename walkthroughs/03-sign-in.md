@@ -85,7 +85,7 @@ Handlers then declare what they need with two tiny wrappers, [`signedIn`](repo:b
 
 ### CSRF: three independent layers
 
-`SameSite=Lax` alone isn't enough (older browsers, same-site subdomains). [`withCSRF`](repo:backend/server/server.go#withCSRF) also requires a custom header on every non-GET request, `X-Requested-With: frontend-loop`, which a cross-site HTML form can't send and a cross-site `fetch` can't send without a CORS preflight we never approve, and it rejects requests whose `Sec-Fetch-Site`/`Origin` say they came from another site. The client adds the header in one place, [api.ts](repo:src/platform/api.ts#apiFetch). Background: [ADR-015](repo:docs/DECISIONS.md#ADR-015).
+`SameSite=Lax` alone isn't enough (older browsers, same-site subdomains). [`withCSRF`](repo:backend/server/server.go#withCSRF) also requires a custom header on every non-GET request, `X-Requested-With: whetstone`, which a cross-site HTML form can't send and a cross-site `fetch` can't send without a CORS preflight we never approve, and it rejects requests whose `Sec-Fetch-Site`/`Origin` say they came from another site. The client adds the header in one place, [api.ts](repo:src/platform/api.ts#apiFetch). Background: [ADR-015](repo:docs/DECISIONS.md#ADR-015).
 
 ### Members-only by default
 

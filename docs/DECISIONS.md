@@ -224,7 +224,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 **Context.** Cookie sessions are vulnerable to cross-site request forgery.
 
-**Decision.** All state-changing requests must carry `X-Requested-With: frontend-loop` (a cross-site page can't set it without a CORS preflight, which the API never approves), must not be `Sec-Fetch-Site: cross-site`, and if an `Origin` header is present it must equal the app origin. Cookies are `SameSite=Lax`.
+**Decision.** All state-changing requests must carry `X-Requested-With: whetstone` (a cross-site page can't set it without a CORS preflight, which the API never approves), must not be `Sec-Fetch-Site: cross-site`, and if an `Origin` header is present it must equal the app origin. Cookies are `SameSite=Lax`.
 
 **Consequences.**
 - (+) Three independent layers; any one stops classic CSRF. No token plumbing in forms.
@@ -443,16 +443,16 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 ---
 
-## ADR-028: Rename to Whetstone; keep technical identifiers
+## ADR-028: Rename to Whetstone, everywhere
 
 **Status:** Accepted
 
 **Context.** The app is growing beyond frontend interviews (backend, QE, DevOps, AI/ML, audit certifications such as CISA/DISA), so "Frontend Loop" no longer fits. "Whetstone" says what the app does: it sharpens skills you already have. A registered US trademark (WHETSTONE, class 42, education software for school systems) exists; the owner accepted that risk, to be revisited before any commercial launch.
 
-**Decision.** Rename the user-visible product name (UI, emails, docs, default site name). Keep technical identifiers that would break data or links: the Go module path, repository and Vercel URLs, and the `frontend-loop:*` localStorage keys. Existing deployments keep their stored site name until an admin changes it in the console.
+**Decision.** Rename everything: the product name, Go module path, repository references, `whetstone:*` localStorage keys, the `X-Requested-With: whetstone` CSRF header, database names in dev/CI, download file names. Browsers' locally saved progress under the old keys is abandoned (accepted by the owner; signed-in users re-sync from the server). Later, per-discipline subdomains (frontend., backend., ...) can select a track.
 
-**Alternatives considered.** Renaming storage keys too (would silently drop every learner's local progress unless a migration is written); renaming the repository now (do it with the custom domain, GitHub redirects the old URL).
+**Alternatives considered.** Keeping technical identifiers (no data loss, but a half-renamed codebase); writing a localStorage migration (more code for a pre-launch app).
 
 **Consequences.**
-- (+) No data loss, no broken links, small diff.
-- (−) Some internals still say frontend-loop until a deliberate migration.
+- (+) One consistent name.
+- (−) Local-only progress and in-flight sessions reset once; the repo and the Vercel project must be renamed to match.

@@ -7,7 +7,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/anand1296/frontend-loop/backend/server"
+	"github.com/anand1296/whetstone/backend/server"
 )
 
 var app = server.Vercel(server.ConfigFromEnv())

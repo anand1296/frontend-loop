@@ -26,7 +26,7 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
-const TAB_KEY = 'frontend-loop:console-tab';
+const TAB_KEY = 'whetstone:console-tab';
 
 function initialTab(): TabId {
   const saved = readJson(TAB_KEY);

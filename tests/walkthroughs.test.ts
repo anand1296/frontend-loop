@@ -75,7 +75,7 @@ describe('compileWalkthroughs', () => {
       ctx(root),
     );
     const html = out.html.demo ?? '';
-    assert.match(html, /href="https:\/\/github.com\/anand1296\/frontend-loop\/blob\/abc123\/backend\/store\/things.go#L8"/);
+    assert.match(html, /href="https:\/\/github.com\/anand1296\/whetstone\/blob\/abc123\/backend\/store\/things.go#L8"/);
     assert.match(html, /blob\/abc123\/src\/parse.ts#L1-L2/);
     assert.match(html, /tree\/abc123\/backend\/store"/);
     assert.deepEqual(out.items[0]?.files, ['backend/store/things.go', 'src/parse.ts', 'backend/store/']);

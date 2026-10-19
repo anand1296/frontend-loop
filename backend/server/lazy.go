@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/catalog"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/catalog"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 // Lazy builds the real handler on first use and retries failed starts.

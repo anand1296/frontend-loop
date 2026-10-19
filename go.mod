@@ -1,4 +1,4 @@
-module github.com/anand1296/frontend-loop
+module github.com/anand1296/whetstone
 
 go 1.24
 

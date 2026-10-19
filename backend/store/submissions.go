@@ -8,7 +8,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"github.com/anand1296/frontend-loop/backend/catalog"
+	"github.com/anand1296/whetstone/backend/catalog"
 )
 
 // Submission statuses.

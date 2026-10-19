@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/server"
+	"github.com/anand1296/whetstone/backend/server"
 )
 
 func main() {

@@ -7,7 +7,7 @@
  */
 import { EMPTY_PROGRESS, parseProgress, type ProgressState } from '../progress.ts';
 
-export const PROGRESS_KEY = 'frontend-loop:progress:v1';
+export const PROGRESS_KEY = 'whetstone:progress:v1';
 
 function storage(): Storage | null {
   try {

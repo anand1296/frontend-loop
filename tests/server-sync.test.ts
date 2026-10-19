@@ -18,7 +18,7 @@ function fakeServer(initial: ProgressState) {
   const fetchStub = async (url: string | URL, init?: RequestInit): Promise<Response> => {
     const method = init?.method ?? 'GET';
     calls.push(`${method} ${String(url)}`);
-    assert.equal((init?.headers as Record<string, string>)['X-Requested-With'], 'frontend-loop', 'CSRF header on every request');
+    assert.equal((init?.headers as Record<string, string>)['X-Requested-With'], 'whetstone', 'CSRF header on every request');
     if (method === 'PUT') {
       const incoming = parseProgress(JSON.parse(String(init?.body)));
       assert.ok(incoming);
