@@ -75,7 +75,7 @@ function ProgressTools() {
     }
     const progress = parseProgress(parsed);
     if (!progress) {
-      setMessage('That JSON is not a Frontend Loop export (expected "version": 1 and "questions").');
+      setMessage('That JSON is not a Whetstone export (expected "version": 1 and "questions").');
       return;
     }
     progressActions.importProgress(progress, mode);

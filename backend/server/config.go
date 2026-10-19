@@ -34,7 +34,7 @@ type Config struct {
 	SMTPPort     int
 	SMTPUsername string
 	SMTPPassword string
-	EmailFrom    string // e.g. "Frontend Loop <you@gmail.com>"
+	EmailFrom    string // e.g. "Whetstone <you@gmail.com>"
 	// CronSecret authenticates the scheduler (Vercel Cron sends "Authorization: Bearer <CRON_SECRET>").
 	CronSecret string
 }

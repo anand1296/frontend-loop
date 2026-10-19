@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildMultipartMessage(t *testing.T) {
-	raw, err := Build("Frontend Loop <loop@example.com>", Message{
+	raw, err := Build("Whetstone <loop@example.com>", Message{
 		To:      "Priya <priya@example.com>",
 		Subject: "Your check-in: 42/110 done ✓",
 		Text:    "Hello\nworld",
@@ -22,7 +22,7 @@ func TestBuildMultipartMessage(t *testing.T) {
 	}
 	s := string(raw)
 	for _, want := range []string{
-		"From: \"Frontend Loop\" <loop@example.com>\r\n",
+		"From: \"Whetstone\" <loop@example.com>\r\n",
 		"To: \"Priya\" <priya@example.com>\r\n",
 		"Subject: =?utf-8?q?",
 		"List-Unsubscribe: <https://app/u>\r\n",

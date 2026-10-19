@@ -1,4 +1,6 @@
-# Frontend Loop
+# Whetstone
+
+> Formerly "Frontend Loop". Sharpen your skills for interviews and exams.
 
 **Interview prep for senior, lead and principal engineers.** 109 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 

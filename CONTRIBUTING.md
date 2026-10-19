@@ -1,4 +1,4 @@
-# Contributing to Frontend Loop
+# Contributing to Whetstone
 
 Thanks for helping! There are two ways to contribute, and both are reviewed by the owner ([@anand1296](https://github.com/anand1296)) before anything goes live.
 

@@ -1,4 +1,4 @@
-# Frontend Loop: Technical Specification
+# Whetstone: Technical Specification
 
 **Version:** 2.3 (Go backend, admin CMS, accounts, reminders, How it's built, community contributions) · **Status:** implemented · **Owner:** Anand (@anand1296) · **Last updated:** 2026-10-17
 
@@ -32,7 +32,7 @@ This is the single, self-contained specification of the system: what it does (pr
 
 ## 1. Summary
 
-Frontend Loop is a study app for senior, lead and principal engineering interviews. Questions are grouped into **rounds** (topics). Each question is an accordion row; expanding it shows a deep answer (a 60-second spoken answer, mental model, code, trade-offs, follow-ups, mistakes, references). Learners tick questions done, resume where they left off, review done answers on a spaced schedule and keep private notes.
+Whetstone is a study app for senior, lead and principal engineering interviews. Questions are grouped into **rounds** (topics). Each question is an accordion row; expanding it shows a deep answer (a 60-second spoken answer, mental model, code, trade-offs, follow-ups, mistakes, references). Learners tick questions done, resume where they left off, review done answers on a spaced schedule and keep private notes.
 
 Version 2 adds a **Go backend** with **Postgres**:
 

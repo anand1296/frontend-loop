@@ -59,7 +59,7 @@ type env struct {
 func newEnv(t *testing.T, mutate ...func(*Config)) *env {
 	t.Helper()
 	e := newPrivateEnv(t, mutate...)
-	if err := e.store.PutSetting(context.Background(), 0, "site", Site{Name: "Frontend Loop", Registration: "invite", ContentAccess: "public"}); err != nil {
+	if err := e.store.PutSetting(context.Background(), 0, "site", Site{Name: "Whetstone", Registration: "invite", ContentAccess: "public"}); err != nil {
 		t.Fatal(err)
 	}
 	return e

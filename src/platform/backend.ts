@@ -76,7 +76,7 @@ export interface ServerState {
 
 const ALL_ON = Object.fromEntries(FEATURE_KEYS.map((key) => [key, true])) as Features;
 
-export const DEFAULT_SITE: SiteSettings = { name: 'Frontend Loop', tagline: '', registration: 'invite', contentAccess: 'public' };
+export const DEFAULT_SITE: SiteSettings = { name: 'Whetstone', tagline: '', registration: 'invite', contentAccess: 'public' };
 
 export const serverStore = createStore<ServerState>({
   mode: 'static',

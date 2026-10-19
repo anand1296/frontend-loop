@@ -1,4 +1,4 @@
-// Command server runs Frontend Loop as one process: the API under /api and
+// Command server runs Whetstone as one process: the API under /api and
 // the built frontend (dist/) for everything else. Use it locally, in Docker,
 // or on any host that runs a binary (Fly.io, Render, a VPS).
 //

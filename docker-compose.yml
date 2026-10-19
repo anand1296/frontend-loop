@@ -33,7 +33,7 @@ services:
       DEV_LOGIN: ${DEV_LOGIN:-1}
       SMTP_HOST: mail
       SMTP_PORT: '1025'
-      EMAIL_FROM: Frontend Loop <loop@localhost.test>
+      EMAIL_FROM: Whetstone <loop@localhost.test>
       CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
     ports: ['8080:8080']
 

@@ -166,7 +166,7 @@ export function InviteDialog() {
           <>
             <p className="settings-copy">
               {info.invitedBy ? <>@{info.invitedBy} invited you</> : <>You've been invited</>} to join{' '}
-              <strong>{info.siteName ?? 'Frontend Loop'}</strong> as {roleText}. Sign in to accept; your progress will then sync
+              <strong>{info.siteName ?? 'Whetstone'}</strong> as {roleText}. Sign in to accept; your progress will then sync
               across devices.
             </p>
             <SignInOptions invite={invite ?? undefined} />

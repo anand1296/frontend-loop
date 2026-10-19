@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Short records of the decisions that shaped Frontend Loop: context, decision, consequences. Format after Michael Nygard's ADRs. New decisions get the next number; superseded ones stay, marked as such.
+Short records of the decisions that shaped Whetstone: context, decision, consequences. Format after Michael Nygard's ADRs. New decisions get the next number; superseded ones stay, marked as such.
 
 ---
 
@@ -440,3 +440,19 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 **Consequences.**
 - (+) Self-testing is the default, with one extra click to see the answer.
 - (−) One more click for readers who just want to read; "Expand all" now shows only the full questions.
+
+---
+
+## ADR-028: Rename to Whetstone; keep technical identifiers
+
+**Status:** Accepted
+
+**Context.** The app is growing beyond frontend interviews (backend, QE, DevOps, AI/ML, audit certifications such as CISA/DISA), so "Frontend Loop" no longer fits. "Whetstone" says what the app does: it sharpens skills you already have. A registered US trademark (WHETSTONE, class 42, education software for school systems) exists; the owner accepted that risk, to be revisited before any commercial launch.
+
+**Decision.** Rename the user-visible product name (UI, emails, docs, default site name). Keep technical identifiers that would break data or links: the Go module path, repository and Vercel URLs, and the `frontend-loop:*` localStorage keys. Existing deployments keep their stored site name until an admin changes it in the console.
+
+**Alternatives considered.** Renaming storage keys too (would silently drop every learner's local progress unless a migration is written); renaming the repository now (do it with the custom domain, GitHub redirects the old URL).
+
+**Consequences.**
+- (+) No data loss, no broken links, small diff.
+- (−) Some internals still say frontend-loop until a deliberate migration.

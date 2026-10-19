@@ -1,6 +1,6 @@
 # Architecture
 
-Frontend Loop is a client-rendered React application. It runs in two modes, chosen at boot (ADR-020):
+Whetstone is a client-rendered React application. It runs in two modes, chosen at boot (ADR-020):
 
 - **Local-only** (static hosting, single HTML file, claude.ai Artifact): content is **compiled at build time**; progress lives in the browser and, on claude.ai, in a private per-user document.
 - **Server mode** (with the Go backend): content, accounts, roles, settings and progress come from the Go API and Postgres.

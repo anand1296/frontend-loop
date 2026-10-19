@@ -1,6 +1,6 @@
 # Deployment
 
-Three ways to run Frontend Loop, from zero setup to full stack.
+Three ways to run Whetstone, from zero setup to full stack.
 
 | Mode | What you get | Needs |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ What you'll see after each step: no database → setup checklist; database but n
 ### 1.3 Create a GitHub OAuth app
 
 1. github.com → **Settings → Developer settings → OAuth Apps → New OAuth App**.
-2. **Application name:** Frontend Loop. **Homepage URL:** your Vercel URL.
+2. **Application name:** Whetstone. **Homepage URL:** your Vercel URL.
 3. **Authorization callback URL:** `https://<your-app>.vercel.app/api/auth/github/callback`
 4. Register, then **Generate a new client secret**. Keep the page open.
 
@@ -77,7 +77,7 @@ People can opt in (Settings → Email reminders, off by default) to a daily, eve
 **Easiest: your Gmail account (no domain needed, ~500 emails/day)**
 
 1. Turn on **2-Step Verification** for the Google account (myaccount.google.com → Security). App passwords require it.
-2. Open https://myaccount.google.com/apppasswords, name it `Frontend Loop`, click **Create** and copy the 16-character password (spaces don't matter).
+2. Open https://myaccount.google.com/apppasswords, name it `Whetstone`, click **Create** and copy the 16-character password (spaces don't matter).
 3. In Vercel → Settings → Environment Variables (Production), add:
 
    | Key | Value |
@@ -86,7 +86,7 @@ People can opt in (Settings → Email reminders, off by default) to a daily, eve
    | `SMTP_PORT` | `587` |
    | `SMTP_USERNAME` | your Gmail address |
    | `SMTP_PASSWORD` | the app password (mark it Sensitive) |
-   | `EMAIL_FROM` | `Frontend Loop <your Gmail address>` (must be the same address) |
+   | `EMAIL_FROM` | `Whetstone <your Gmail address>` (must be the same address) |
    | `CRON_SECRET` | a long random string, e.g. from `openssl rand -hex 32` or a password manager (Sensitive) |
 
 4. **Redeploy.** Vercel → Settings → **Cron Jobs** now lists `/api/cron/reminders`.

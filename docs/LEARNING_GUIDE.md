@@ -1,6 +1,6 @@
 # Learning Guide: this codebase as a study project
 
-Frontend Loop is deliberately built with the techniques its answers teach, in the React frontend and (since v2) in the Go backend. Use this guide two ways: as a **code tour** (read the file, then the question it illustrates) and as a list of **exercises** that extend the app and double as interview practice.
+Whetstone is deliberately built with the techniques its answers teach, in the React frontend and (since v2) in the Go backend. Use this guide two ways: as a **code tour** (read the file, then the question it illustrates) and as a list of **exercises** that extend the app and double as interview practice.
 
 > **Start inside the app.** *Behind the scenes → How it's built* has seven walkthroughs (also in [`walkthroughs/`](../walkthroughs/)) that follow one feature at a time through the code: architecture, email reminders, sign-in and sessions, progress sync, the content pipeline and CMS, community contributions, and the walkthrough system itself. Their code excerpts are quoted live from the repository, so they always match what you're reading below.
 

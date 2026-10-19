@@ -21,7 +21,7 @@ func rounds() []Round {
 }
 
 func input(doc progress.Doc) Input {
-	return Input{UserID: 7, Name: "Anand Khandalekar", Email: "anand@example.com", SiteName: "Frontend Loop",
+	return Input{UserID: 7, Name: "Anand Khandalekar", Email: "anand@example.com", SiteName: "Whetstone",
 		AppURL: "https://loop.example", UnsubscribeURL: "https://loop.example/api/reminders/unsubscribe?token=abc",
 		Frequency: "weekly", Doc: doc, Rounds: rounds(), Now: now}
 }
@@ -81,7 +81,7 @@ func TestComposeEmail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if msg.To != "anand@example.com" || msg.Subject != "Frontend Loop: 1/4 done · 1 due for review" {
+	if msg.To != "anand@example.com" || msg.Subject != "Whetstone: 1/4 done · 1 due for review" {
 		t.Fatalf("unexpected envelope %q / %q", msg.To, msg.Subject)
 	}
 	for _, want := range []string{"Hi Anand,", "1 / 4", "https://loop.example/#q2", "https://loop.example/#review", "unsubscribe?token=abc", "Continue studying"} {
