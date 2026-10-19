@@ -23,6 +23,7 @@ minutes: 15
 > [!TLDR]
 > React escapes strings rendered as text and attribute values, which stops most injection. It does **not** protect `dangerouslySetInnerHTML`, `href`/`src` with `javascript:` URLs (React warns but older versions allowed them), direct DOM APIs (`innerHTML`, `insertAdjacentHTML`), third-party widgets, server-rendered state embedded in `<script>` tags, or `eval`-like sinks. Sanitize HTML with DOMPurify (or render Markdown to a safe subset), validate URL schemes, serialize SSR state safely, and add CSP as defense in depth.
 
+:::react
 ### The sinks
 
 ```tsx
@@ -39,6 +40,76 @@ minutes: 15
 <script dangerouslySetInnerHTML={{ __html: `window.__STATE__ = ${JSON.stringify(state)}` }} />
 // state containing "</script><script>alert(1)</script>" breaks out of the tag
 ```
+:::
+
+:::angular
+### The sinks (Angular)
+
+Angular treats every value as untrusted by default and sanitizes it for its context, so the dangerous cases are the ones where you opt out.
+
+```html
+<!-- Safe: interpolation is escaped. -->
+<p>{{ comment.body }}</p>
+
+<!-- Sanitized: [innerHTML] strips scripts and unsafe attributes (and logs a warning when it does). -->
+<div [innerHTML]="comment.html"></div>
+
+<!-- Sanitized: unsafe URL schemes such as javascript: are rewritten to "unsafe:". -->
+<a [href]="profile.website">Website</a>
+```
+
+```ts
+// Dangerous: the bypass APIs turn the protection off for that value.
+const html = this.sanitizer.bypassSecurityTrustHtml(userHtml);      // never with user content
+const url = this.sanitizer.bypassSecurityTrustResourceUrl(userUrl); // iframe/script sources
+```
+
+Treat every `bypassSecurityTrust*` call as a code-review red flag: it should wrap content you produced, never content you received. Sanitization is also context-specific, so Angular blocks binding user data to `<iframe src>` or event-handler attributes outright.
+
+Things Angular does not cover: direct DOM access through `ElementRef.nativeElement.innerHTML` or `Renderer2.setProperty(..., 'innerHTML', ...)` (bypasses the sanitizer), server-rendered state embedded in script tags (use `TransferState`, which escapes properly), and third-party widgets. Defense in depth is Trusted Types (Angular supports them) plus a strict CSP.
+:::
+
+:::vue
+### The sinks (Vue)
+
+Vue escapes text interpolation and attribute values, but it does **not** sanitize HTML or URLs, so two bindings are your main risks.
+
+```vue
+<template>
+  <!-- Safe: text is escaped. -->
+  <p>{{ comment.body }}</p>
+
+  <!-- Dangerous: raw HTML from users. -->
+  <div v-html="comment.html" />
+
+  <!-- Dangerous: Vue does not block javascript: URLs in bindings. -->
+  <a :href="profile.website">Website</a>
+
+  <!-- Dangerous: user-controlled template source compiles to code. -->
+  <component :is="compileUserTemplate(userInput)" />
+</template>
+```
+
+Fix them with the helpers below. Never use user input as a template (the runtime compiler), and treat `v-html` as the Vue equivalent of `dangerouslySetInnerHTML`: the Vue docs call it out as a direct XSS vector.
+
+```vue
+<script setup lang="ts">
+import { computed } from 'vue';
+import { safeUrl, sanitizeHtml } from './security'; // the DOMPurify and URL-scheme helpers shown below
+
+const props = defineProps<{ comment: { html: string }; profile: { website: string } }>();
+const html = computed(() => sanitizeHtml(props.comment.html));
+const website = computed(() => safeUrl(props.profile.website));
+</script>
+
+<template>
+  <div v-html="html" />
+  <a v-if="website" :href="website" rel="noopener noreferrer">Website</a>
+</template>
+```
+
+SSR (Nuxt) serializes state with a safe serializer (devalue), so the `</script>` breakout is handled for you, but a hand-rolled `<script>window.__STATE__ = ...` is not. Direct DOM writes through template refs (`el.innerHTML = ...`) bypass everything, as in any framework.
+:::
 
 ### Fixes
 

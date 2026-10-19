@@ -84,6 +84,7 @@ function parseEvent(raw: string): SseEvent | null {
 }
 ```
 
+:::react
 ### Using it with batching and stop
 
 ```tsx
@@ -143,6 +144,189 @@ function useChat() {
   return { messages, send, stop };
 }
 ```
+:::
+
+:::angular
+### Using it with batching and stop (Angular)
+
+`readSse` is framework-free. The state lives in a signal-based store; the animation-frame batching means at most one signal write (and view update) per frame.
+
+```ts
+type Message =
+  | { id: string; role: 'user'; text: string }
+  | { id: string; role: 'assistant'; text: string; status: 'streaming' | 'done' | 'stopped' | 'error'; error?: string };
+
+@Injectable()
+export class ChatStore {
+  readonly messages = signal<Message[]>([]);
+  private controller: AbortController | null = null;
+
+  async send(text: string): Promise<void> {
+    this.controller?.abort(); // one active stream per conversation
+    const controller = new AbortController();
+    this.controller = controller;
+    const assistantId = crypto.randomUUID();
+    this.messages.update((m) => [
+      ...m,
+      { id: crypto.randomUUID(), role: 'user', text },
+      { id: assistantId, role: 'assistant', text: '', status: 'streaming' },
+    ]);
+
+    let pending = '';
+    let frame = 0;
+    const patch = (change: (msg: Extract<Message, { role: 'assistant' }>) => Message) =>
+      this.messages.update((m) => m.map((msg) => (msg.id === assistantId && msg.role === 'assistant' ? change(msg) : msg)));
+    const flush = () => {
+      frame = 0;
+      const chunk = pending;
+      pending = '';
+      patch((msg) => ({ ...msg, text: msg.text + chunk }));
+    };
+    const finish = (status: 'done' | 'stopped' | 'error', error?: string) => {
+      if (frame) cancelAnimationFrame(frame);
+      flush();
+      patch((msg) => ({ ...msg, status, error }));
+    };
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(response.status === 429 ? 'Too many requests. Try again in a moment.' : `Error ${response.status}`);
+      for await (const event of readSse(response, controller.signal)) {
+        if (event.event === 'delta') {
+          pending += event.data;
+          if (!frame) frame = requestAnimationFrame(flush); // at most one update per frame
+        } else if (event.event === 'error') {
+          throw new Error(event.data);
+        }
+      }
+      finish('done');
+    } catch (error) {
+      if (controller.signal.aborted) finish('stopped');
+      else finish('error', error instanceof Error ? error.message : 'Something went wrong');
+    }
+  }
+
+  stop(): void {
+    this.controller?.abort();
+  }
+}
+```
+
+```ts
+@Component({
+  selector: 'app-chat',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [ChatStore],
+  template: `
+    @for (message of store.messages(); track message.id) {
+      <app-message [message]="message" />
+    }
+    <button type="button" (click)="store.stop()">Stop</button>
+  `,
+})
+export class ChatComponent {
+  protected readonly store = inject(ChatStore);
+}
+```
+
+Angular notes: with zone.js, `fetch` and `requestAnimationFrame` callbacks trigger change detection on their own; with zoneless apps, signal writes schedule it. Either way `track message.id` plus `OnPush` message components means only the streaming message re-renders. Providing `ChatStore` on the component gives each conversation its own store, whose lifetime ends with the component (abort in `ngOnDestroy` or via `DestroyRef`).
+:::
+
+:::vue
+### Using it with batching and stop (Vue)
+
+`readSse` is framework-free. The state lives in a composable; the animation-frame batching means at most one reactive write (and render) per frame.
+
+```ts
+// useChat.ts
+import { onScopeDispose, shallowRef } from 'vue';
+
+type Message =
+  | { id: string; role: 'user'; text: string }
+  | { id: string; role: 'assistant'; text: string; status: 'streaming' | 'done' | 'stopped' | 'error'; error?: string };
+
+export function useChat() {
+  const messages = shallowRef<Message[]>([]); // replaced immutably per update; no deep proxies
+  let controller: AbortController | null = null;
+
+  async function send(text: string) {
+    controller?.abort(); // one active stream per conversation
+    const current = new AbortController();
+    controller = current;
+    const assistantId = crypto.randomUUID();
+    messages.value = [
+      ...messages.value,
+      { id: crypto.randomUUID(), role: 'user', text },
+      { id: assistantId, role: 'assistant', text: '', status: 'streaming' },
+    ];
+
+    let pending = '';
+    let frame = 0;
+    const patch = (change: (msg: Extract<Message, { role: 'assistant' }>) => Message) => {
+      messages.value = messages.value.map((msg) => (msg.id === assistantId && msg.role === 'assistant' ? change(msg) : msg));
+    };
+    const flush = () => {
+      frame = 0;
+      const chunk = pending;
+      pending = '';
+      patch((msg) => ({ ...msg, text: msg.text + chunk }));
+    };
+    const finish = (status: 'done' | 'stopped' | 'error', error?: string) => {
+      if (frame) cancelAnimationFrame(frame);
+      flush();
+      patch((msg) => ({ ...msg, status, error }));
+    };
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+        signal: current.signal,
+      });
+      if (!response.ok) throw new Error(response.status === 429 ? 'Too many requests. Try again in a moment.' : `Error ${response.status}`);
+      for await (const event of readSse(response, current.signal)) {
+        if (event.event === 'delta') {
+          pending += event.data;
+          if (!frame) frame = requestAnimationFrame(flush); // at most one update per frame
+        } else if (event.event === 'error') {
+          throw new Error(event.data);
+        }
+      }
+      finish('done');
+    } catch (error) {
+      if (current.signal.aborted) finish('stopped');
+      else finish('error', error instanceof Error ? error.message : 'Something went wrong');
+    }
+  }
+
+  const stop = () => controller?.abort();
+  onScopeDispose(stop); // leaving the page ends the stream
+
+  return { messages, send, stop };
+}
+```
+
+```vue
+<script setup lang="ts">
+import { useChat } from './useChat';
+
+const { messages, send, stop } = useChat();
+</script>
+
+<template>
+  <ChatMessage v-for="message in messages" :key="message.id" :message="message" />
+  <button type="button" @click="stop">Stop</button>
+</template>
+```
+
+Vue notes: Vue batches reactive writes into one render per tick, and the frame batching limits how many ticks you create. Because the list is a `shallowRef` replaced immutably, Vue compares each `ChatMessage`'s `message` prop by identity and re-renders only the one message whose object changed. The Vercel AI SDK has framework-specific bindings (`@ai-sdk/vue`) that wrap this pattern.
+:::
 
 ### Details interviewers look for
 
@@ -178,6 +362,7 @@ minutes: 15
 > [!TLDR]
 > Model output is untrusted input that arrives incomplete. Treat it like user-generated content: render Markdown with raw HTML **disabled** (or sanitized), allow only safe link protocols, and never `eval` or inject model-produced HTML/JS. For performance, split the text into **blocks**, memoize completed blocks, and only re-parse the last (growing) block on each update. Handle unterminated syntax gracefully (an open code fence renders as a code block in progress, not as raw backticks).
 
+:::react
 ### Block-level memoization
 
 ```tsx
@@ -220,6 +405,114 @@ function safeUrlTransform(url: string): string {
 ```
 
 (Using the index as a key is correct here: blocks only append, so positions are stable.)
+:::
+
+:::angular
+### Block-level memoization (Angular)
+
+Memoization falls out of `OnPush` and input identity: a block component whose `source` string has not changed is not checked again.
+
+```ts
+@Component({
+  selector: 'app-markdown-block',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<div [innerHTML]="html()"></div>`, // Angular sanitizes [innerHTML] again as defense in depth
+})
+export class MarkdownBlock {
+  readonly source = input.required<string>();
+  protected readonly html = computed(() => renderMarkdown(this.source()));
+}
+
+@Component({
+  selector: 'app-streaming-markdown',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [MarkdownBlock],
+  template: `
+    <div class="prose">
+      @for (block of blocks(); track $index) {
+        <app-markdown-block [source]="block" />
+      }
+    </div>
+  `,
+})
+export class StreamingMarkdown {
+  readonly text = input.required<string>();
+  protected readonly blocks = computed(() => splitIntoBlocks(this.text()));
+}
+```
+
+```ts
+import { Marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+const marked = new Marked({ gfm: true });
+marked.use({ renderer: { html: ({ text }) => escapeHtml(text) } }); // raw HTML is shown as text, never parsed
+const safeHref = /^(https?:|mailto:|#|\/)/i;
+
+/** Raw HTML disabled, links allowlisted, then sanitized. `escapeHtml` is a small helper (&, <, >, quotes). */
+export function renderMarkdown(source: string): string {
+  const html = marked.parse(source, { async: false });
+  return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: safeHref });
+}
+```
+
+`splitIntoBlocks` is the same plain function as in the React version (split on blank lines outside fences). Using `$index` for `track` is correct here for the same reason: blocks only append, so positions are stable. Angular's `DomSanitizer` is a second layer, not a substitute for sanitizing in the renderer, because it is deliberately permissive about some markup.
+:::
+
+:::vue
+### Block-level memoization (Vue)
+
+Vue already skips re-rendering a child whose props are unchanged, and `computed` caches the parse, so a completed block is never re-parsed or re-rendered.
+
+```vue
+<!-- MarkdownBlock.vue -->
+<script setup lang="ts">
+import { computed } from 'vue';
+import { renderMarkdown } from './renderMarkdown';
+
+const props = defineProps<{ source: string }>();
+const html = computed(() => renderMarkdown(props.source)); // re-runs only when this block's text changes
+</script>
+
+<template>
+  <div v-html="html" />
+</template>
+```
+
+```vue
+<!-- StreamingMarkdown.vue -->
+<script setup lang="ts">
+import { computed } from 'vue';
+import MarkdownBlock from './MarkdownBlock.vue';
+import { splitIntoBlocks } from './splitIntoBlocks';
+
+const props = defineProps<{ text: string }>();
+const blocks = computed(() => splitIntoBlocks(props.text));
+</script>
+
+<template>
+  <div class="prose">
+    <!-- index keys are correct here: blocks only append, so positions are stable -->
+    <MarkdownBlock v-for="(block, index) in blocks" :key="index" :source="block" />
+  </div>
+</template>
+```
+
+```ts
+// renderMarkdown.ts
+import DOMPurify from 'dompurify';
+import MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt({ html: false, linkify: true }); // raw HTML disabled
+const safeHref = /^(https?:|mailto:|#|\/)/i;
+
+export function renderMarkdown(source: string): string {
+  return DOMPurify.sanitize(md.render(source), { ALLOWED_URI_REGEXP: safeHref });
+}
+```
+
+`v-html` is the Vue XSS sink, which is why the output is sanitized before it is bound, even with `html: false`. `splitIntoBlocks` is the same plain function as in the React version. For very long messages, `v-memo` on the block list is rarely needed because unchanged blocks already skip rendering.
+:::
 
 ### Partial syntax
 
@@ -258,6 +551,7 @@ minutes: 20
 > [!TLDR]
 > With tool calling, the model returns **structured requests** (`{ tool: "create_invoice", args: {...} }`) instead of prose. The frontend maps a fixed **registry** of tool names to typed renderers and handlers, validates arguments with schemas before showing or running anything, and requires explicit **user confirmation** for actions with side effects (send, pay, delete), showing exactly what will happen. Read-only tools can auto-run. Never let the model choose arbitrary components, URLs or code to execute; it only picks from what you've allowlisted.
 
+:::react
 ### Registry with schemas
 
 ```tsx
@@ -295,6 +589,137 @@ function ToolCallView({ name, rawArgs, onApprove, onReject }: {
   // ...render preview + confirmation when tool.sideEffects
 }
 ```
+:::
+
+:::angular
+### Registry with schemas (Angular)
+
+The registry maps tool names to a schema, a flag and a component type; Angular instantiates the allowlisted component with `NgComponentOutlet`, passing validated inputs. The model never supplies a component, only a name that has to be a key of the registry.
+
+```ts
+import { z } from 'zod';
+
+const tools = {
+  show_chart: {
+    schema: z.object({ metric: z.enum(['revenue', 'signups']), range: z.enum(['7d', '30d', '90d']) }),
+    sideEffects: false,
+    component: MetricChartComponent,
+  },
+  send_invoice: {
+    schema: z.object({ customerId: z.string().uuid(), amountCents: z.number().int().positive(), currency: z.enum(['USD', 'EUR', 'INR']) }),
+    sideEffects: true,
+    component: InvoicePreviewComponent,
+  },
+} as const;
+
+type ToolName = keyof typeof tools;
+
+function isToolName(name: string): name is ToolName {
+  return Object.hasOwn(tools, name);
+}
+
+@Component({
+  selector: 'app-tool-call',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NgComponentOutlet],
+  template: `
+    @let view = resolved();
+    @switch (view.kind) {
+      @case ('unknown') { <p role="alert">The assistant requested an unknown action.</p> }
+      @case ('invalid') { <p role="alert">The assistant produced invalid parameters for {{ name() }}.</p> }
+      @case ('ok') {
+        <ng-container *ngComponentOutlet="view.component; inputs: view.args" />
+        @if (view.sideEffects) {
+          <button type="button" (click)="approve.emit()">Approve</button>
+          <button type="button" (click)="reject.emit('declined')">Reject</button>
+        }
+      }
+    }
+  `,
+})
+export class ToolCallComponent {
+  readonly name = input.required<string>();
+  readonly rawArgs = input.required<unknown>();
+  readonly approve = output<void>();
+  readonly reject = output<string>();
+
+  protected readonly resolved = computed(() => {
+    const name = this.name();
+    if (!isToolName(name)) return { kind: 'unknown' as const };
+    const tool = tools[name];
+    const parsed = tool.schema.safeParse(this.rawArgs());
+    if (!parsed.success) return { kind: 'invalid' as const };
+    return { kind: 'ok' as const, component: tool.component, args: parsed.data, sideEffects: tool.sideEffects };
+  });
+}
+```
+
+Notice that `Object.hasOwn` guards against names like `constructor` or `__proto__`, and that the validated `parsed.data`, not the raw model output, is what reaches the component.
+:::
+
+:::vue
+### Registry with schemas (Vue)
+
+The registry maps tool names to a schema, a flag and a component; `<component :is>` renders the allowlisted component with validated props. The model never supplies a component, only a name that has to be a key of the registry.
+
+```ts
+// tools.ts
+import { z } from 'zod';
+import { markRaw } from 'vue';
+
+export const tools = {
+  show_chart: {
+    schema: z.object({ metric: z.enum(['revenue', 'signups']), range: z.enum(['7d', '30d', '90d']) }),
+    sideEffects: false,
+    component: markRaw(MetricChart), // components in a registry should not become reactive
+  },
+  send_invoice: {
+    schema: z.object({ customerId: z.string().uuid(), amountCents: z.number().int().positive(), currency: z.enum(['USD', 'EUR', 'INR']) }),
+    sideEffects: true,
+    component: markRaw(InvoicePreview),
+  },
+} as const;
+
+export type ToolName = keyof typeof tools;
+
+export function isToolName(name: string): name is ToolName {
+  return Object.hasOwn(tools, name);
+}
+```
+
+```vue
+<!-- ToolCall.vue -->
+<script setup lang="ts">
+import { computed } from 'vue';
+import { isToolName, tools } from './tools';
+
+const props = defineProps<{ name: string; rawArgs: unknown }>();
+const emit = defineEmits<{ approve: []; reject: [reason: string] }>();
+
+const resolved = computed(() => {
+  if (!isToolName(props.name)) return { kind: 'unknown' as const };
+  const tool = tools[props.name];
+  const parsed = tool.schema.safeParse(props.rawArgs);
+  if (!parsed.success) return { kind: 'invalid' as const };
+  return { kind: 'ok' as const, component: tool.component, args: parsed.data, sideEffects: tool.sideEffects };
+});
+</script>
+
+<template>
+  <p v-if="resolved.kind === 'unknown'" role="alert">The assistant requested an unknown action.</p>
+  <p v-else-if="resolved.kind === 'invalid'" role="alert">The assistant produced invalid parameters for {{ name }}.</p>
+  <template v-else>
+    <component :is="resolved.component" v-bind="resolved.args" />
+    <template v-if="resolved.sideEffects">
+      <button type="button" @click="emit('approve')">Approve</button>
+      <button type="button" @click="emit('reject', 'declined')">Reject</button>
+    </template>
+  </template>
+</template>
+```
+
+Two Vue-specific rules: never resolve a component from a string the model controls (no `resolveComponent(model.name)`, no runtime template compilation), only from the registry; and bind `parsed.data`, the validated object, never the raw model output.
+:::
 
 ### The confirmation UX
 

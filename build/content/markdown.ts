@@ -28,6 +28,7 @@ import dockerfile from 'highlight.js/lib/languages/dockerfile';
 import protobuf from 'highlight.js/lib/languages/protobuf';
 import ini from 'highlight.js/lib/languages/ini';
 import { ContentError } from './frontmatter.ts';
+import { MARKER_CLOSE, MARKER_OPEN } from './frameworks.ts';
 
 hljs.registerLanguage('typescript', typescript);
 hljs.registerLanguage('javascript', javascript);
@@ -58,6 +59,7 @@ const LANGUAGES: Record<string, LanguageDef> = {
   javascript: { grammar: 'javascript', label: 'JavaScript' },
   jsx: { grammar: 'javascript', label: 'JSX' },
   html: { grammar: 'xml', label: 'HTML' },
+  vue: { grammar: 'xml', label: 'Vue' },
   xml: { grammar: 'xml', label: 'XML' },
   css: { grammar: 'css', label: 'CSS' },
   bash: { grammar: 'bash', label: 'Shell' },
@@ -144,6 +146,11 @@ export function createMarkdownRenderer(where: () => string): Marked {
         return `<aside class="callout callout-${kind.toLowerCase()}"><p class="callout-label">${label}</p>${body}</aside>\n`;
       },
       html({ text }: Tokens.HTML | Tokens.Tag): string {
+        // Only the marker comments written by expandFrameworkBlocks become markup.
+        const trimmed = text.trim();
+        const open = MARKER_OPEN.exec(trimmed);
+        if (open) return `<section class="fw" data-fw="${open[1]}">\n`;
+        if (trimmed === MARKER_CLOSE) return '</section>\n';
         // Raw HTML is never trusted, even from our own content.
         return escapeHtml(text);
       },
@@ -184,6 +191,7 @@ export function toPlainText(markdown: string): string {
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[![A-Z]+\]/g, '')
+    .replace(/^:::[a-z]*\s*$/gm, '')
     .replace(/^\s*>\s?/gm, '')
     .replace(/^\s*#{1,6}\s+/gm, '')
     .replace(/\*\*|__|~~|[*`]/g, '')

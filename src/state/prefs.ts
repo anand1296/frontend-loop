@@ -3,6 +3,7 @@
  * Unlike progress, these are conveniences: they never sync and losing them is harmless.
  */
 import { isLevel, type Level } from '../content/types.ts';
+import { isFrameworkId, type FrameworkId } from '../features/section/frameworks.ts';
 import { createStore } from './createStore.ts';
 import { readJson, writeJson } from './persistence/local.ts';
 
@@ -14,23 +15,27 @@ export interface Prefs {
   theme: ThemePref;
   /** Hide answers until the learner has attempted them out loud. */
   practiceMode: boolean;
+  /** Which framework's code to show in answers that have variants. */
+  framework: FrameworkId;
   status: StatusFilter;
   level: LevelFilter;
 }
 
 const PREFS_KEY = 'whetstone:prefs:v1';
 
-export const DEFAULT_PREFS: Prefs = { theme: 'system', practiceMode: false, status: 'all', level: 'all' };
+export const DEFAULT_PREFS: Prefs = { theme: 'system', practiceMode: false, framework: 'react', status: 'all', level: 'all' };
 
 function parsePrefs(input: unknown): Prefs {
   if (typeof input !== 'object' || input === null) return DEFAULT_PREFS;
   const theme = 'theme' in input ? input.theme : undefined;
   const practiceMode = 'practiceMode' in input ? input.practiceMode : undefined;
+  const framework = 'framework' in input ? input.framework : undefined;
   const status = 'status' in input ? input.status : undefined;
   const level = 'level' in input ? input.level : undefined;
   return {
     theme: theme === 'light' || theme === 'dark' || theme === 'system' ? theme : DEFAULT_PREFS.theme,
     practiceMode: typeof practiceMode === 'boolean' ? practiceMode : DEFAULT_PREFS.practiceMode,
+    framework: isFrameworkId(framework) ? framework : DEFAULT_PREFS.framework,
     status: status === 'todo' || status === 'done' || status === 'all' ? status : DEFAULT_PREFS.status,
     level: typeof level === 'string' && (level === 'all' || isLevel(level)) ? level : DEFAULT_PREFS.level,
   };

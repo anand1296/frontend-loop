@@ -27,6 +27,7 @@ var Languages = map[string]Language{
 	"javascript": {"javascript", "JavaScript"},
 	"jsx":        {"react", "JSX"},
 	"html":       {"html", "HTML"},
+	"vue":        {"html", "Vue"},
 	"xml":        {"xml", "XML"},
 	"css":        {"css", "CSS"},
 	"bash":       {"bash", "Shell"},

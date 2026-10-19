@@ -9,6 +9,7 @@ import { progressActions, progressStore } from '../../state/progressStore.ts';
 import { useStore } from '../../state/useStore.ts';
 import { platformStore } from '../../platform/runtime.ts';
 import { useServer } from '../../platform/backend.ts';
+import { FRAMEWORKS } from '../section/frameworks.ts';
 import { AccountSection } from '../account/Account.tsx';
 import { ReminderSettings } from '../reminders/ReminderSettings.tsx';
 
@@ -152,6 +153,7 @@ export function SettingsDialog({ open, onClose, onSignIn }: { open: boolean; onC
   const server = useServer();
   const theme = useStore(prefsStore, (p) => p.theme);
   const practiceMode = useStore(prefsStore, (p) => p.practiceMode);
+  const framework = useStore(prefsStore, (p) => p.framework);
   const sync = useStore(syncStatusStore, (s) => s);
   const role = useStore(platformStore, (p) => p.role);
 
@@ -175,6 +177,26 @@ export function SettingsDialog({ open, onClose, onSignIn }: { open: boolean; onC
                 role="radio"
                 aria-checked={theme === option.value}
                 onClick={() => updatePrefs({ theme: option.value })}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <h3>Framework</h3>
+          <p className="settings-hint">
+            Answers that have React, Angular and Vue versions open on this one. You can also switch on the answer itself.
+          </p>
+          <div className="segmented" role="radiogroup" aria-label="Preferred framework">
+            {FRAMEWORKS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={framework === option.id}
+                onClick={() => updatePrefs({ framework: option.id })}
               >
                 {option.label}
               </button>

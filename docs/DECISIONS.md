@@ -456,3 +456,23 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 **Consequences.**
 - (+) One consistent name.
 - (−) Local-only progress and in-flight sessions reset once; the repo and the Vercel project must be renamed to match.
+
+
+---
+
+## ADR-029: Framework variants inside an answer (`:::react|angular|vue`), switched with CSS
+
+**Status:** Accepted
+
+**Context.** Answers were React-only, which excludes Angular and Vue engineers. Most of an answer (the question, the 60-second answer, mental model, trade-offs, edge cases) is framework-neutral; only the code and the API names differ. Readers want to pick a framework once and see it everywhere.
+
+**Decision.** Authors wrap framework-specific material in `:::react`, `:::angular` or `:::vue` containers; everything else is shared. A small pre-pass in both renderers (`build/content/frameworks.ts`, `backend/markdown/frameworks.go`) rewrites the containers to marker comments, and the existing HTML-block handling turns the markers into `<section class="fw" data-fw="…">`. The reader's choice is a device-local preference (`framework`, default React); the answer view sets one data attribute and CSS shows the matching section. The switch only appears on answers that have more than one variant, and a missing variant falls back to React with a visible note. `vue` was added as a code-fence language.
+
+**Alternatives considered.** One file per framework (triples maintenance and drifts); tabs inside each code block (hides the framework-specific prose around the code); callout syntax with `> ` prefixes (unreadable for long code); rendering only the chosen framework on the server (breaks static builds and the single HTML file, and makes switching a round trip).
+
+**Consequences.**
+- (+) Switching is instant and works offline in the static build, the single-file build and the server build; the parity test covers the variants too.
+- (+) Neutral content is written once.
+- (−) The HTML for every framework ships with the answer chunk (answers are loaded per round, and gzip handles the repeated structure well).
+- (−) Search indexes all variants, so a search can match text that is hidden for the current framework; the match opens the question, where the switch is one click.
+- (−) Authors must keep the variants equivalent as questions evolve; the content guide says what stays shared.

@@ -82,6 +82,7 @@ minutes: 15
 > [!TLDR]
 > Query the DOM the way users and assistive tech do: `getByRole` with an accessible name first, then label/text, and `getByTestId` only as a last resort. Interact with `userEvent` (realistic event sequences) rather than `fireEvent`. Wait for async UI with `findBy*` or `waitFor` (never arbitrary sleeps). Assert visible outcomes. If a component is hard to query by role, that's often an accessibility bug.
 
+:::react
 ### A good test
 
 ```tsx
@@ -103,6 +104,76 @@ test('adds a todo and shows it in the list', async () => {
   expect(screen.getByRole('textbox', { name: /new todo/i })).toHaveValue('');
 });
 ```
+:::
+
+:::angular
+### A good test (Angular)
+
+Testing Library has an Angular flavor with the same philosophy and queries. `render` accepts the component, its providers and its inputs; the user-event API and the query priority are identical.
+
+```ts
+import { render, screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { server } from '../test/server';
+
+test('adds a todo and shows it in the list', async () => {
+  const user = userEvent.setup();
+  server.use(http.post('/api/todos', () => HttpResponse.json({ id: '1', text: 'Write tests', done: false }, { status: 201 })));
+
+  await render(TodoApp, { providers: [provideHttpClient(), ...appTestProviders] });
+
+  await user.type(screen.getByRole('textbox', { name: /new todo/i }), 'Write tests');
+  await user.click(screen.getByRole('button', { name: /add/i }));
+
+  expect(await screen.findByRole('listitem', { name: /write tests/i })).toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: /new todo/i })).toHaveValue('');
+});
+```
+
+Angular specifics:
+
+- The test runner's change detection is automatic with the Testing Library wrapper (`await render(...)` and the async queries flush it). With raw `TestBed`, call `fixture.detectChanges()` or `await fixture.whenStable()`; prefer the Testing Library queries over `fixture.debugElement.query(By.css(...))`.
+- Replace `HttpClient` calls with `provideHttpClientTesting()` and `HttpTestingController`, or intercept at the network level with MSW as above (the realistic option).
+- Pass inputs through `render(Component, { inputs: { id: '1' } })`, and spy on outputs with `on: { saved: jest.fn() }`, so you test the public contract.
+- `fakeAsync` and `tick` control time for debounced code; with zoneless apps use the test runner's fake timers.
+- Query priority, `findBy*` versus `queryBy*`, and "what not to test" are exactly as in the React version.
+:::
+
+:::vue
+### A good test (Vue)
+
+Vue Testing Library keeps the same queries and philosophy on top of Vue Test Utils. Rendering takes the component plus global plugins; user-event and the query priority are identical.
+
+```ts
+import { render, screen } from '@testing-library/vue';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { createTestingPinia } from '@pinia/testing';
+import { server } from '../test/server';
+
+test('adds a todo and shows it in the list', async () => {
+  const user = userEvent.setup();
+  server.use(http.post('/api/todos', () => HttpResponse.json({ id: '1', text: 'Write tests', done: false }, { status: 201 })));
+
+  render(TodoApp, { global: { plugins: [createTestingPinia({ stubActions: false }), router] } });
+
+  await user.type(screen.getByRole('textbox', { name: /new todo/i }), 'Write tests');
+  await user.click(screen.getByRole('button', { name: /add/i }));
+
+  expect(await screen.findByRole('listitem', { name: /write tests/i })).toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: /new todo/i })).toHaveValue('');
+});
+```
+
+Vue specifics:
+
+- DOM updates are batched: after a state change, `await nextTick()` (or just use the `findBy*` queries) before asserting. Testing Library's async queries do this for you.
+- Pass props with `render(Component, { props: { id: '1' } })`, and assert on emitted events through the rendered DOM or the `emitted()` helper from Vue Test Utils when the event is the contract.
+- Provide plugins (router, Pinia, i18n) through `global.plugins`; stub heavy children with `global.stubs`.
+- Use Vitest fake timers for debounced behavior.
+- Query priority, `findBy*` versus `queryBy*`, and "what not to test" are exactly as in the React version. Do not assert on component instance internals (`wrapper.vm`); Vue Test Utils makes that easy, which is the Vue version of testing implementation details.
+:::
 
 ### Query priority
 

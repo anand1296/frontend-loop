@@ -1,5 +1,8 @@
 import { use, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import { loadAnswers } from '../../content/index.ts';
+import { prefsStore, updatePrefs } from '../../state/prefs.ts';
+import { useStore } from '../../state/useStore.ts';
+import { FRAMEWORKS, frameworkLabel, frameworksIn, pickFramework, type FrameworkId } from './frameworks.ts';
 import { splitPrompt } from './prompt.ts';
 
 /**
@@ -29,14 +32,52 @@ export async function handleCopyClick(event: MouseEvent<HTMLDivElement>): Promis
   }, 1800);
 }
 
-function Html({ html }: { html: string }) {
+function Html({ html, framework }: { html: string; framework?: FrameworkId | null }) {
   return (
     <div
-      className="prose"
+      className={framework ? 'prose fw-scope' : 'prose'}
+      data-fw-active={framework ?? undefined}
       onClick={(event) => void handleCopyClick(event)}
       // Safe: produced at build time by build/content/markdown.ts, which escapes raw HTML.
       dangerouslySetInnerHTML={{ __html: html }}
     />
+  );
+}
+
+/** React / Angular / Vue toggle; only shown when the answer has more than one variant. */
+function FrameworkSwitch({
+  available,
+  active,
+  preferred,
+}: {
+  available: FrameworkId[];
+  active: FrameworkId;
+  preferred: FrameworkId;
+}) {
+  return (
+    <div className="fw-switch">
+      <span className="fw-switch-label" id="fw-switch-label">
+        Show code in
+      </span>
+      <div className="segmented" role="radiogroup" aria-labelledby="fw-switch-label">
+        {FRAMEWORKS.filter((f) => available.includes(f.id)).map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            role="radio"
+            aria-checked={active === f.id}
+            onClick={() => updatePrefs({ framework: f.id })}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      {preferred !== active ? (
+        <span className="fw-switch-note" role="status">
+          No {frameworkLabel(preferred)} version of this answer yet, showing {frameworkLabel(active)}.
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -46,9 +87,15 @@ function RevealedAnswer({ html, focus }: { html: string; focus: boolean }) {
   useEffect(() => {
     if (focus) ref.current?.focus({ preventScroll: true });
   }, [focus]);
+  const preferred = useStore(prefsStore, (p) => p.framework);
+  const available = frameworksIn(html);
+  const active = pickFramework(available, preferred);
   return (
     <div ref={ref} className="answer-reveal" role="group" aria-label="Answer" tabIndex={-1}>
-      <Html html={html} />
+      {available.length > 1 && active ? (
+        <FrameworkSwitch available={available} active={active} preferred={preferred} />
+      ) : null}
+      <Html html={html} framework={active} />
     </div>
   );
 }

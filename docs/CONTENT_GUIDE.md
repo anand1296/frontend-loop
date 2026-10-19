@@ -61,7 +61,7 @@ Lines in these blocks are plain `key: value`; a line starting with `#` is a comm
 
 Supported fence languages:
 
-- Frontend: `ts`/`typescript`, `tsx`, `js`/`javascript`, `jsx`, `html`, `xml`, `css`, `json`, `graphql`
+- Frontend: `ts`/`typescript`, `tsx`, `js`/`javascript`, `jsx`, `html`, `vue`, `xml`, `css`, `json`, `graphql`
 - Backend, data and cloud: `go`/`golang`, `sql`, `python`/`py`, `dockerfile`/`docker`, `proto`/`protobuf`, `hcl`/`terraform`/`tf`, `toml`, `ini`, `yaml`/`yml`
 - General: `bash`/`sh`/`shell`, `diff`, `http`, `text`/`txt`
 
@@ -71,6 +71,36 @@ Code standards (same as the answers preach):
 - TypeScript first, strict-mode correct, no unnecessary `as` assertions. If an assertion is genuinely needed, say why in a note.
 - Small, complete examples over fragments; name things as you would in production.
 - Include cleanup (abort, unsubscribe) wherever effects or listeners appear.
+
+## Framework variants (React, Angular, Vue)
+
+Material that only applies to one framework goes in a container; everything outside a container is shared and always shown.
+
+```markdown
+:::react
+### Implementation (React)
+...any markdown, code fences included...
+:::
+
+:::angular
+### Implementation (Angular)
+...
+:::
+
+:::vue
+### Implementation (Vue)
+...
+:::
+```
+
+Rules (enforced by both renderers, with the same error messages):
+
+- The container lines `:::react`, `:::angular`, `:::vue` and the closing `:::` must each be on their own line. Containers cannot nest, and every one must be closed.
+- A `:::` line inside a fenced code block is just code.
+- Names other than `react`, `angular` and `vue` fail the build.
+- The reader's framework (Settings, or the switch on the answer) selects which container is shown. If an answer has several frameworks, the switch appears; if the reader's choice is missing from an answer, React is shown with a note.
+- Keep the **prompt, the 60-second answer, mental model, trade-offs, edge cases and references shared** when they are framework-neutral. Wrap only what would be wrong or confusing in another framework: code, framework API names and the bullets that explain them. If a section is React-only by nature (for example Server Components or the React Compiler), leave it as a plain section or a single `:::react` container; do not invent an equivalent.
+- Each variant should be idiomatic, not a transliteration: signals and `computed` in Angular, `ref`/`computed`/composables in Vue, with the same interview-level reasoning (cleanup, accessibility, races) as the React version.
 
 ## Answer structure
 

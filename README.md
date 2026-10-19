@@ -44,6 +44,7 @@ The same frontend still runs **without** a backend: on any static host, as one H
 
 - **Rounds and accordions.** Each topic is a round; each question is an accordion row showing the question, its level (Senior, Lead/Staff, Principal), study time and tags. Expand it for the full answer.
 - **Answers built for the room.** Every answer opens with *the 60-second answer*, then the mental model, correct code with a copy button, trade-offs, edge cases, follow-ups, common mistakes and primary references.
+- **React, Angular or Vue.** Answers with code (machine-coding builds, component APIs, forms, error handling, state, testing, security, streaming UIs and more) have a framework switch: pick React, Angular or Vue once and the code follows you across questions. Framework-neutral material is always shown.
 - **Tick it off; pick up where you left off.** Progress saves automatically; the overview reopens the question you were on.
 - **Email reminders** (opt-in, daily / every 3 days / weekly): progress, reviews due, the next question with a link, and a motivational nudge.
 - **Spaced review** (2, 5, 12, 30, 75 days), **practice mode** (answer out loud first, with a stopwatch), **private notes**, **search** (`/` or Ctrl/⌘ K), filters, deep links (`#oauth-pkce-flow`), light/dark, phone-friendly, keyboard and screen-reader friendly.

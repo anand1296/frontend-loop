@@ -97,6 +97,7 @@ minutes: 15
 > [!TLDR]
 > A component re-renders when its state changes, its parent re-renders (props don't matter unless it's memoized), or a context it reads changes. Re-rendering isn't a bug; **expensive or excessive** re-rendering is. The best fixes are structural: move state down (colocation), lift content up (`children` as props), split contexts by update frequency, and subscribe to slices of external stores. `React.memo`/`useMemo`/`useCallback` are targeted tools after profiling, and the React Compiler automates most of them.
 
+:::react
 ### The three triggers
 
 ```tsx
@@ -179,6 +180,136 @@ Use the React DevTools Profiler ("Highlight updates", flamegraph, "Why did this 
 
 - **"Why does my context consumer re-render even though the value didn't change?"** The provider's `value={{ user, setUser }}` is a new object every render. Memoize the value or split state and dispatch into separate contexts.
 - **"Does a component re-render if `setState` is called with the same value?"** React bails out (`Object.is`) and usually skips rendering children; it may render the component itself once before bailing.
+:::
+
+:::angular
+### What triggers work in Angular
+
+Angular's question is "which views get checked?", not "which components re-render". Two modes matter:
+
+- **Default change detection** checks every component from the root down after any event or async task that zone.js sees. A keystroke in a search box re-checks the whole tree, including the 2,000-row table, even if nothing in it changed.
+- **`OnPush`** checks a component only when an `input()` reference changes, an event fires inside it, a signal read in its template changes, or something calls `markForCheck` (the `async` pipe does). Zoneless change detection plus signals refreshes only the views that read the signal that changed.
+
+```ts
+@Component({
+  selector: 'app-search-page',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ResultsTable],
+  template: `
+    <input [value]="query()" (input)="query.set($any($event.target).value)" />
+    <app-results-table [rows]="rows()" />
+  `,
+})
+export class SearchPage {
+  protected readonly query = signal('');
+  protected readonly rows = signal<Row[]>([]); // the table input does not change while typing
+}
+```
+
+### Structural fixes (no memoization needed)
+
+**1. Make `OnPush` the default** for every component (a lint rule, or the schematic default). With it, the table is not re-checked while the parent's other state changes, because its `rows` input keeps the same reference.
+
+**2. Move state down.** Put the query in a small `<app-search-box>` that owns the signal and emits a debounced `(queryChange)`; the page and the table never see keystrokes.
+
+**3. Derive with `computed`**, which caches until its signal dependencies change, instead of recomputing in a template method (a method call in a template runs on every check):
+
+```ts
+protected readonly visible = computed(() => this.rows().filter((row) => !row.archived));
+```
+
+**4. Give lists identity.** `@for (row of visible(); track row.id)` lets Angular move and patch DOM nodes instead of recreating them; `track $index` on a reorderable list defeats this.
+
+**5. Split state by volatility.** A service exposing one big `signal<AppState>` makes every reader depend on all of it. Expose slices as `computed` selectors (`readonly cursor = computed(() => this.state().cursor)`); readers of unrelated slices are not notified, and signals compare by reference so an unchanged slice does not propagate.
+
+**6. Defer and virtualize.** `@defer (on viewport)` for below-the-fold heavy trees, and `cdk-virtual-scroll-viewport` for long lists.
+
+### Targeted tools
+
+- `OnPush` plus immutable updates is the equivalent of `memo` with stable props: mutating an object in place does not change its reference, so an `OnPush` child will not update. Replace the object (`rows.update((r) => [...r, next])`).
+- Pure pipes are memoized per input reference, a good home for cheap formatting in templates.
+- `ChangeDetectorRef.detach()` and `runOutsideAngular` are last resorts for high-frequency work such as drag handlers or animation frames.
+
+### Measure first
+
+Use **Angular DevTools**' profiler to record change-detection cycles and see which components were checked and for how long, plus the browser Performance panel. Fix components that are both checked often and slow to check.
+
+> [!WARNING]
+> Sprinkling `markForCheck()` or switching components back to `Default` to "make the UI update" hides a real bug, usually a mutated input. Fix the data flow instead.
+
+### Follow-ups
+
+- **"My `OnPush` component did not update."** An input was mutated rather than replaced, or state changed outside Angular's knowledge (a callback from a third-party library); put the state in a signal.
+- **"Do signals replace `OnPush`?"** They complement it. With signals read in the template and zoneless change detection, only the affected views refresh, and `OnPush` is the model that makes the default behavior cheap.
+- **"Why does a method call in the template run constantly?"** The template re-evaluates on every check of that view; use `computed`, a pure pipe or a plain property.
+:::
+
+:::vue
+### What triggers work in Vue
+
+Vue renders at component granularity but tracks dependencies precisely. A component re-renders when a reactive value it **read during its last render** changes, or when its **props** change (compared shallowly; an unchanged parent re-render does not re-render a child whose props are equal). So the usual Vue slowdowns are different from React's:
+
+- A prop that is a **new object or array on every render** (`:style="{...}"`, `:items="items.filter(...)"` inline) makes the child's props change each time.
+- **Deep reactivity on large data**: a `ref` holding a 10,000-item array wraps each item in a proxy and tracks every property read.
+- A **coarse dependency**: one component reads a big shared `reactive` object, so any field change re-renders it.
+
+```vue
+<script setup lang="ts">
+import { computed, ref, shallowRef } from 'vue';
+
+const query = ref('');
+const rows = shallowRef<Row[]>([]); // replace the array to update; no deep proxies on thousands of rows
+const visible = computed(() => rows.value.filter((row) => !row.archived && row.name.includes(query.value)));
+</script>
+
+<template>
+  <input v-model="query" />
+  <ResultsTable :rows="visible" />
+</template>
+```
+
+### Structural fixes (no memoization needed)
+
+**1. Move state down.** Keep the query in a `SearchBox` component that emits a debounced `update:modelValue`; the page and the table do not re-render per keystroke.
+
+**2. Derive with `computed`.** It caches until its dependencies change and is the replacement for most `useMemo` calls. Never compute derived data in a method called from the template.
+
+**3. Use `shallowRef` and `shallowReactive`** (or `markRaw` for class instances and chart objects) for large, replace-not-mutate data.
+
+**4. Keep props stable.** Hoist constant objects out of the template, or compute them once.
+
+**5. Split state by volatility.** In a Pinia store, use getters and select only what a component needs; with `storeToRefs`, a component that reads `cursor` is not re-rendered when `theme` changes.
+
+**6. Virtualize** long lists, and give `v-for` stable `:key` values.
+
+### Targeted tools
+
+```vue
+<!-- Re-render a row only when its selection state or timestamp changes -->
+<tr v-for="row in visible" :key="row.id" v-memo="[row.id === selectedId, row.updatedAt]">
+  <td>{{ row.name }}</td>
+</tr>
+```
+
+`v-memo` is the per-subtree memoization escape hatch (like `memo` with a custom comparison); `v-once` renders once and never again. Both are for hot paths after measuring, not defaults.
+
+### Measure first
+
+Use Vue DevTools: the performance and timeline panels, and "highlight updates". To find out *why* a component re-rendered, add the development hooks:
+
+```ts
+onRenderTriggered((event) => console.log('re-rendered because', event.key, event.type));
+```
+
+> [!WARNING]
+> Wrapping everything in `shallowRef` or `v-memo` "just in case" trades correctness for speed: in-place mutations of a `shallowRef` value do not update the UI. Reach for these only for data you replace wholesale, and only after profiling.
+
+### Follow-ups
+
+- **"Why does a child re-render when the parent's unrelated state changes?"** Usually a prop that is a fresh object or function each time, or the child reading a slot whose content changed; stabilize the prop.
+- **"`ref` or `reactive`?"** Prefer `ref` (works for primitives, can be replaced wholesale, survives destructuring); avoid destructuring a `reactive` object, which loses reactivity.
+- **"Does Vue have something like the React Compiler?"** No; fine-grained tracking plus `computed` removes most of the need for manual memoization, and Vapor mode (an opt-in compilation strategy) aims to remove the virtual DOM cost as well.
+:::
 
 ### References
 
@@ -205,6 +336,7 @@ minutes: 15
 > [!TLDR]
 > `useEffect` exists to **synchronize with something outside React** (DOM APIs, subscriptions, network, timers, third-party widgets). If the code reacts to a **user action**, it belongs in the event handler. If it **computes** a value from props/state, compute it during render (memoize if expensive). If it **resets** state when a prop changes, use a `key` or adjust state during render. Most bugs in effect-heavy code (extra renders, loops, races) disappear when unnecessary effects are removed.
 
+:::react
 ### Anti-pattern → fix table
 
 | You wrote | Instead |
@@ -264,6 +396,134 @@ In development, React mounts → unmounts → mounts each component to verify ef
 
 - **"How do you read the latest props in an effect without re-running it?"** `useEffectEvent` (stable in recent React) for event-like logic inside effects; a ref updated in a layout effect as the older pattern.
 - **"Why does the linter insist on all dependencies?"** Missing deps mean the effect closes over stale values. If adding a dependency causes loops, the effect is doing too much; restructure instead of disabling the rule.
+:::
+
+:::angular
+### Anti-pattern → fix table (Angular)
+
+The same rule applies to `effect()`: it exists to **synchronize with something outside the signal graph** (the DOM, `localStorage`, a third-party widget, analytics). Derived values and user-driven changes do not belong in it.
+
+| You wrote | Instead |
+| --- | --- |
+| `effect(() => this.fullName.set(this.first() + ' ' + this.last()))` | `fullName = computed(() => this.first() + ' ' + this.last())` |
+| `effect(() => this.visible.set(filter(this.items())))` | `visible = computed(() => filter(this.items()))` |
+| `effect(() => { if (this.submitted()) this.post(this.form()) })` | Call `post` in the submit handler |
+| `effect(() => this.selection.set(null))` when `items` changes | `selection = linkedSignal({ source: this.items, computation: () => null })` |
+| `effect(() => this.valueChange.emit(this.value()))` (notify parent) | Emit in the handler that changed the value, or use `model()` |
+| An `effect` that fetches and writes to a signal | `resource()` / `rxResource()` (cancels, tracks loading and error) |
+| Chains of effects writing signals that trigger effects | One handler (or one `computed`) that produces the next state |
+
+### Resetting state when an input changes (without an effect)
+
+`linkedSignal` is a writable signal that recomputes from a source, which is exactly "state that resets when a prop changes":
+
+```ts
+export class ItemList {
+  readonly items = input.required<Item[]>();
+  // Starts null, goes back to null whenever the list changes, and is still writable by clicks.
+  protected readonly selectedId = linkedSignal<Item[], string | null>({
+    source: this.items,
+    computation: () => null,
+  });
+  // Or derive instead of syncing: a selection that disappeared becomes "no selection".
+  protected readonly selected = computed(() => this.items().find((item) => item.id === this.selectedId()) ?? null);
+}
+```
+
+### Legitimate effects
+
+```ts
+export class MotionPrefs {
+  readonly reduced = signal(false);
+
+  constructor() {
+    effect((onCleanup) => {
+      // Subscribing to a browser API, with cleanup. (`toSignal` on a fromEvent stream also works.)
+      const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const update = () => this.reduced.set(media.matches);
+      update();
+      media.addEventListener('change', update);
+      onCleanup(() => media.removeEventListener('change', update));
+    });
+  }
+}
+```
+
+Writes to signals inside an effect are allowed, but each is a hint that a `computed`, `linkedSignal` or event handler would be clearer. Use `afterNextRender` / `afterRenderEffect` for DOM measurement and third-party widgets that need the rendered DOM, and wrap reads you do not want tracked in `untracked()`.
+
+### Fetching in effects
+
+Do not hand-roll it. `resource()` / `rxResource()` take a request signal, cancel the previous request when it changes, expose `value()`, `isLoading()`, `error()` and `reload()`, and give you a stable place for caching decisions. For app-wide caching and deduping, TanStack Query's Angular adapter or a service with `shareReplay` fills the same role as in other frameworks.
+
+### Cleanup and double invocation
+
+Angular does not mount-unmount-mount components in development, so there is no Strict Mode check to catch a missing cleanup. The discipline is the same, though: every `effect` that subscribes returns cleanup through `onCleanup`, and anything else registers with `DestroyRef.onDestroy`. `takeUntilDestroyed()` handles RxJS subscriptions.
+
+### Follow-ups
+
+- **"How do you read a signal in an effect without making it a dependency?"** `untracked(() => this.other())`. This is the Angular answer to "latest value without re-running".
+- **"Why did my effect run more than once?"** Effects re-run when any signal they read changes, and they run during change detection, not synchronously after a `set`. If the effect does too much, split it or move the work into a `computed`.
+:::
+
+:::vue
+### Anti-pattern → fix table (Vue)
+
+The same rule applies to `watch` and `watchEffect`: they exist to **perform side effects in response to change** (touch the DOM, storage, network, a third-party widget). Derived values do not belong in them.
+
+| You wrote | Instead |
+| --- | --- |
+| `watch([first, last], () => (fullName.value = first.value + ' ' + last.value))` | `const fullName = computed(() => first.value + ' ' + last.value)` |
+| `watch(items, () => (visible.value = filter(items.value)))` | `const visible = computed(() => filter(items.value))` |
+| `watch(submitted, (yes) => yes && post(form))` | Call `post(form)` in the submit handler |
+| `watch(() => props.id, () => (draft.value = emptyDraft()))` | Put `:key="id"` on the component so Vue recreates it, or derive the state |
+| `watch(value, (v) => emit('change', v))` (notify parent) | Emit in the handler that changed `value`, or use `defineModel` |
+| Chains of watchers writing refs that trigger watchers | One handler or one `computed` that produces the next state |
+
+### Resetting state when a prop changes (without a watcher)
+
+```vue
+<!-- Parent: a new id means a fresh editor, with fresh state -->
+<ProfileEditor :key="userId" :user-id="userId" />
+```
+
+```ts
+// Or derive instead of syncing: a selection that disappeared becomes "no selection".
+const selectedId = ref<string | null>(null);
+const selected = computed(() => props.items.find((item) => item.id === selectedId.value) ?? null);
+```
+
+### Legitimate effects
+
+```ts
+// Subscribing to a browser API, with cleanup.
+export function useReducedMotion() {
+  const reduced = ref(false);
+  watchEffect((onCleanup) => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => (reduced.value = media.matches);
+    update();
+    media.addEventListener('change', update);
+    onCleanup(() => media.removeEventListener('change', update));
+  });
+  return reduced;
+}
+```
+
+Choose `watch(source, callback)` when you need the old and new values or want lazy execution, and `watchEffect` when the dependencies are whatever the callback reads. Use `{ flush: 'post' }` (or `watchPostEffect`) when the effect needs the updated DOM, and `onMounted` for one-off setup. Inside a watcher, `onWatcherCleanup(fn)` (Vue 3.5+) registers cleanup from nested helper functions.
+
+### Fetching in watchers
+
+Do not hand-roll it. Use a data library (TanStack Query for Vue, `useFetch` from VueUse, or Nuxt's `useAsyncData`/`useFetch`), which handle cancellation, caching, deduping and races. If you must, a watcher with `onWatcherCleanup(() => controller.abort())` is the minimal safe pattern.
+
+### Cleanup and double invocation
+
+Vue does not mount-unmount-mount in development, so nothing flags a missing cleanup. Effects created synchronously in `setup` are stopped automatically on unmount; effects created later (inside a callback) need manual `stop()` handles. Register listeners with `onWatcherCleanup`, `onUnmounted` or VueUse's `useEventListener`.
+
+### Follow-ups
+
+- **"How do you read the latest value without re-running?"** Read it inside the callback of `watch` (not as a source), or use a plain `ref` that is not tracked by the effect.
+- **"Why does my watcher not fire?"** Watching a property of a reactive object needs a getter (`() => state.count`), not the value; and a `watch` on a shallow ref does not see in-place mutations.
+:::
 
 ### References
 
