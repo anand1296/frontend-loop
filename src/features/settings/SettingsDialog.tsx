@@ -186,8 +186,8 @@ export function SettingsDialog({ open, onClose, onSignIn }: { open: boolean; onC
           <h3>Practice mode</h3>
           <label className="switch-row" htmlFor="practice-mode">
             <span>
-              Hide each answer until you've tried it out loud, with a stopwatch running. Closer to the real interview, and
-              recall sticks far better than re-reading.
+              Every answer already waits behind a Reveal answer button. Practice mode adds a stopwatch and a reminder to talk
+              it through out loud first. Closer to the real interview, and recall sticks far better than re-reading.
             </span>
             <input
               id="practice-mode"

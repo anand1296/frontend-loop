@@ -15,7 +15,8 @@
 }
 
 .prose + .prose,
-.prose + .practice {
+.prose + .practice,
+.prose + .reveal-gate {
   margin-top: 14px;
 }
 

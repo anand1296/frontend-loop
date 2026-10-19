@@ -1,4 +1,4 @@
-import { use, type MouseEvent, type ReactNode } from 'react';
+import { use, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import { loadAnswers } from '../../content/index.ts';
 import { splitPrompt } from './prompt.ts';
 
@@ -40,18 +40,43 @@ function Html({ html }: { html: string }) {
   );
 }
 
+/** The answer itself. When the reader just asked for it, focus moves here so keyboard and screen-reader users land on it. */
+function RevealedAnswer({ html, focus }: { html: string; focus: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focus) ref.current?.focus({ preventScroll: true });
+  }, [focus]);
+  return (
+    <div ref={ref} className="answer-reveal" role="group" aria-label="Answer" tabIndex={-1}>
+      <Html html={html} />
+    </div>
+  );
+}
+
 /**
  * Suspends until the section's answer chunk is loaded (React 19 `use`). The full question is always
- * shown; `gate` (the "answer it out loud first" panel) stands in for the answer until it is revealed.
+ * shown; until `revealed`, `gate` (the "Reveal answer" panel) stands in for the answer.
  */
-export function Answer({ sectionId, questionId, gate = null }: { sectionId: string; questionId: string; gate?: ReactNode }) {
+export function Answer({
+  sectionId,
+  questionId,
+  revealed,
+  gate,
+  focusOnReveal = false,
+}: {
+  sectionId: string;
+  questionId: string;
+  revealed: boolean;
+  gate: ReactNode;
+  focusOnReveal?: boolean;
+}) {
   const answers = use(loadAnswers(sectionId));
   const html = answers[questionId] ?? '<p>Answer not found.</p>';
   const { prompt, rest } = splitPrompt(html);
   return (
     <>
       {prompt ? <Html html={prompt} /> : null}
-      {gate ?? (rest ? <Html html={rest} /> : null)}
+      {revealed ? rest ? <RevealedAnswer html={rest} focus={focusOnReveal} /> : null : gate}
     </>
   );
 }
