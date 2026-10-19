@@ -1,6 +1,6 @@
 # Code of conduct
 
-Frontend Loop is a place to learn and to help others prepare. Everyone who takes part (in issues, pull requests, reviews and submitted questions) is expected to:
+Whetstone is a place to learn and to help others prepare. Everyone who takes part (in issues, pull requests, reviews and submitted questions) is expected to:
 
 - **Be respectful.** Critique ideas and code, never people. No harassment, insults, or discrimination of any kind.
 - **Be generous.** Assume good intent, explain your reasoning, and remember that many contributors are learning.

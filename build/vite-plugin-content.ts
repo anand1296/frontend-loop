@@ -35,7 +35,7 @@ export function contentPlugin(options: { dir?: string } = {}): Plugin {
     (walkCache ??= compileWalkthroughs(readWalkthroughDir(walkDir), { root, commit: currentCommit(root) }));
 
   return {
-    name: 'frontend-loop:content',
+    name: 'whetstone:content',
     resolveId(id) {
       if (id === INDEX_MODULE_ID || id.startsWith(SECTION_MODULE_PREFIX)) return RESOLVED_PREFIX + id;
       if (id === WALKTHROUGHS_INDEX_ID || id === WALKTHROUGHS_CONTENT_ID) return RESOLVED_PREFIX + id;

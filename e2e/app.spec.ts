@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PROGRESS_KEY = 'frontend-loop:progress:v1';
+const PROGRESS_KEY = 'whetstone:progress:v1';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -173,7 +173,7 @@ test('"How it\'s built" walkthroughs and Contribute (no backend)', async ({ page
   await expect(page).toHaveURL(/#how-its-built\/email-reminders$/);
   // Live excerpts and commit-pinned links to the repository.
   await expect(page.locator('.walk-prose figure.code').first()).toBeVisible();
-  await expect(page.locator('.walk-prose a[href*="github.com/anand1296/frontend-loop/blob/"]').first()).toBeVisible();
+  await expect(page.locator('.walk-prose a[href*="github.com/anand1296/whetstone/blob/"]').first()).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Email reminders, end to end');
 

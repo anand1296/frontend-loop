@@ -49,7 +49,7 @@ type SMTP struct {
 	Port     int
 	Username string
 	Password string
-	From     string // "Frontend Loop <you@example.com>"
+	From     string // "Whetstone <you@example.com>"
 }
 
 // Configured reports whether enough settings are present to try sending.

@@ -1,5 +1,5 @@
 {
-  "name": "frontend-loop",
+  "name": "whetstone",
   "private": true,
   "version": "2.0.0",
   "description": "Interview prep for senior, lead and principal engineers: a React app with a Go + Postgres backend, admin CMS, invites and synced progress.",

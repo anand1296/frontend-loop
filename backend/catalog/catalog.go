@@ -14,7 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/anand1296/frontend-loop/backend/markdown"
+	"github.com/anand1296/whetstone/backend/markdown"
 )
 
 // Levels a question can target, in order.

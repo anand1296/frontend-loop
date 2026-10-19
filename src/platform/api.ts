@@ -64,7 +64,7 @@ export async function apiFetch(path: string, options: RequestOptions = {}): Prom
   const onAbort = (): void => controller.abort();
   options.signal?.addEventListener('abort', onAbort, { once: true });
   try {
-    const headers: Record<string, string> = { Accept: 'application/json', 'X-Requested-With': 'frontend-loop' };
+    const headers: Record<string, string> = { Accept: 'application/json', 'X-Requested-With': 'whetstone' };
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
     return await fetch(`${API_BASE}${path}`, {
       method: options.method ?? 'GET',

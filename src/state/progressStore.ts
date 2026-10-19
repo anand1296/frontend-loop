@@ -58,7 +58,7 @@ export const progressActions = {
 let initialized = false;
 
 /** Which signed-in account (server mode) this browser's local copy belongs to. */
-const OWNER_KEY = 'frontend-loop:progress-owner';
+const OWNER_KEY = 'whetstone:progress-owner';
 
 export interface ProgressBoot {
   /** Server mode: the signed-in user's id, or null when signed out. Omit for local/Artifact mode. */

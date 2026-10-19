@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/auth"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/auth"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 const (

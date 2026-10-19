@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anand1296/frontend-loop/content"
+	"github.com/anand1296/whetstone/content"
 )
 
 func TestParseRepositoryContent(t *testing.T) {

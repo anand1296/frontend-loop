@@ -1,4 +1,6 @@
-# Frontend Loop
+# Whetstone
+
+> Formerly "Frontend Loop". Sharpen your skills for interviews and exams.
 
 **Interview prep for senior, lead and principal engineers.** 109 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
@@ -194,7 +196,7 @@ Guide: [docs/ADMIN.md](docs/ADMIN.md).
 ## Project structure
 
 ```text
-frontend-loop/
+whetstone/
 ├─ content/              question bank (Markdown) + embed.go (bundled into the Go binary)
 ├─ src/                  React app: app/ features/ platform/ content/ state/ components/ lib/ styles/
 ├─ build/content/        TypeScript content compiler (marked + highlight.js)
@@ -244,7 +246,7 @@ From frontend prep to full-stack prep (details in [docs/SPEC.md §18](docs/SPEC.
 
 Two ways, both reviewed by the owner before anything goes live:
 
-- **Share a question from your interviews:** in the app, *Behind the scenes → Contribute* (members), or a [question proposal issue](https://github.com/anand1296/frontend-loop/issues/new?template=question.yml).
+- **Share a question from your interviews:** in the app, *Behind the scenes → Contribute* (members), or a [question proposal issue](https://github.com/anand1296/whetstone/issues/new?template=question.yml).
 - **Improve the code:** fork, branch, `npm run check`, open a pull request. `main` is protected: every PR needs the owner's approval (CODEOWNERS) and green CI.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), the [code of conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) for reporting vulnerabilities privately.

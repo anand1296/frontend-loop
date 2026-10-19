@@ -42,7 +42,7 @@ function ProgressTools() {
   const [confirmReset, setConfirmReset] = useState(false);
 
   const exportJson = (): string =>
-    JSON.stringify({ ...progressStore.getState(), exportedAt: new Date().toISOString(), app: 'frontend-loop' }, null, 2);
+    JSON.stringify({ ...progressStore.getState(), exportedAt: new Date().toISOString(), app: 'whetstone' }, null, 2);
 
   const copy = async (): Promise<void> => {
     try {
@@ -60,7 +60,7 @@ function ProgressTools() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `frontend-loop-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `whetstone-progress-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -75,7 +75,7 @@ function ProgressTools() {
     }
     const progress = parseProgress(parsed);
     if (!progress) {
-      setMessage('That JSON is not a Frontend Loop export (expected "version": 1 and "questions").');
+      setMessage('That JSON is not a Whetstone export (expected "version": 1 and "questions").');
       return;
     }
     progressActions.importProgress(progress, mode);

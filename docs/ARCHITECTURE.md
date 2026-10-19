@@ -1,6 +1,6 @@
 # Architecture
 
-Frontend Loop is a client-rendered React application. It runs in two modes, chosen at boot (ADR-020):
+Whetstone is a client-rendered React application. It runs in two modes, chosen at boot (ADR-020):
 
 - **Local-only** (static hosting, single HTML file, claude.ai Artifact): content is **compiled at build time**; progress lives in the browser and, on claude.ai, in a private per-user document.
 - **Server mode** (with the Go backend): content, accounts, roles, settings and progress come from the Go API and Postgres.
@@ -91,8 +91,8 @@ src/
 
 | State | Where | Persistence |
 | --- | --- | --- |
-| Progress (done, review stage/due, notes, last visit) | `progressStore` | localStorage `frontend-loop:progress:v1`, other tabs, optional cloud doc |
-| Preferences (theme, practice mode, filters) | `prefsStore` | localStorage `frontend-loop:prefs:v1` (device-only) |
+| Progress (done, review stage/due, notes, last visit) | `progressStore` | localStorage `whetstone:progress:v1`, other tabs, optional cloud doc |
+| Preferences (theme, practice mode, filters) | `prefsStore` | localStorage `whetstone:prefs:v1` (device-only) |
 | Route (overview / review / admin / section + focused question) | `routeStore` | URL hash (bare token) |
 | Content (source, version, sections, lookups) | `contentStore` | bundled at build time, or from `/api/bootstrap` |
 | Server mode (user, role, site, feature flags, auth methods, lock) | `serverStore` | `/api/bootstrap`; refreshed after admin saves |

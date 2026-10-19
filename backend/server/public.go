@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/auth"
-	"github.com/anand1296/frontend-loop/backend/progress"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/auth"
+	"github.com/anand1296/whetstone/backend/progress"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 // Reader-facing shapes match src/content/types.ts (SectionMeta, QuestionMeta).

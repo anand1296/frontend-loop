@@ -1,4 +1,4 @@
-# Product Requirements: Frontend Loop
+# Product Requirements: Whetstone
 
 **Status:** v2.0 implemented (Go backend, accounts, admin CMS) · **Owner:** Anand · **Last updated:** 2026-10-16
 

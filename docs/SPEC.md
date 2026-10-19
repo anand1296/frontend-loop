@@ -1,4 +1,4 @@
-# Frontend Loop: Technical Specification
+# Whetstone: Technical Specification
 
 **Version:** 2.3 (Go backend, admin CMS, accounts, reminders, How it's built, community contributions) · **Status:** implemented · **Owner:** Anand (@anand1296) · **Last updated:** 2026-10-17
 
@@ -32,7 +32,7 @@ This is the single, self-contained specification of the system: what it does (pr
 
 ## 1. Summary
 
-Frontend Loop is a study app for senior, lead and principal engineering interviews. Questions are grouped into **rounds** (topics). Each question is an accordion row; expanding it shows a deep answer (a 60-second spoken answer, mental model, code, trade-offs, follow-ups, mistakes, references). Learners tick questions done, resume where they left off, review done answers on a spaced schedule and keep private notes.
+Whetstone is a study app for senior, lead and principal engineering interviews. Questions are grouped into **rounds** (topics). Each question is an accordion row; expanding it shows a deep answer (a 60-second spoken answer, mental model, code, trade-offs, follow-ups, mistakes, references). Learners tick questions done, resume where they left off, review done answers on a spaced schedule and keep private notes.
 
 Version 2 adds a **Go backend** with **Postgres**:
 
@@ -253,7 +253,7 @@ Self-hosted, the Go binary serves both `dist/` and `/api/*` (`cmd/server`).
 ### 5.2 Repository layout
 
 ```text
-frontend-loop/
+whetstone/
 ├─ content/               Markdown question bank (seed + export format) and embed.go (go:embed)
 ├─ src/                   React app (TypeScript)
 │  ├─ app/                shell, sidebar
@@ -340,7 +340,7 @@ Components read content with `useContent()` and flags with `useFeature(key)` / `
 
 Rules: debounced writes (1.2 s), one write in flight, skip writes when local equals remote, flush on tab hide, terminal errors (401/403/400) stop syncing and show the status. A snapshot that arrives during a write is newer than the written state, so it is not overwritten (prevents a redundant second write).
 
-Account hygiene: the browser remembers which user id its local copy belongs to (`frontend-loop:progress-owner`). A different account signing in starts from its own server copy; signing out flushes then clears the local copy.
+Account hygiene: the browser remembers which user id its local copy belongs to (`whetstone:progress-owner`). A different account signing in starts from its own server copy; signing out flushes then clears the local copy.
 
 ### 6.4 Admin console
 
@@ -459,7 +459,7 @@ Every content write increments `settings.content_version` in the same transactio
 
 ## 9. API reference
 
-All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **Every non-GET request must send `X-Requested-With: frontend-loop`.** Errors use the shape in §7.1.
+All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **Every non-GET request must send `X-Requested-With: whetstone`.** Errors use the shape in §7.1.
 
 ### 9.1 Public and learner
 

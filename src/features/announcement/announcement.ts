@@ -17,7 +17,7 @@ export interface Announcement {
 }
 
 export const ANNOUNCEMENT_LIMIT = 280;
-const DISMISSED_KEY = 'frontend-loop:announcement-dismissed';
+const DISMISSED_KEY = 'whetstone:announcement-dismissed';
 
 export const announcementStore = createStore<Announcement | null>(null);
 export const dismissedStore = createStore<number>(0);

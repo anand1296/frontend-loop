@@ -76,7 +76,7 @@ export interface ServerState {
 
 const ALL_ON = Object.fromEntries(FEATURE_KEYS.map((key) => [key, true])) as Features;
 
-export const DEFAULT_SITE: SiteSettings = { name: 'Frontend Loop', tagline: '', registration: 'invite', contentAccess: 'public' };
+export const DEFAULT_SITE: SiteSettings = { name: 'Whetstone', tagline: '', registration: 'invite', contentAccess: 'public' };
 
 export const serverStore = createStore<ServerState>({
   mode: 'static',
@@ -202,7 +202,7 @@ async function fetchBootstrap(timeoutMs: number): Promise<Record<string, unknown
   }
 }
 
-const OFFLINE_KEY = 'frontend-loop:study-offline';
+const OFFLINE_KEY = 'whetstone:study-offline';
 
 function parseSetup(body: unknown): SetupInfo | null {
   if (!isRecord(body) || !isRecord(body.setup) || !isRecord(body.error)) return null;

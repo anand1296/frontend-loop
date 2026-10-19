@@ -1,5 +1,5 @@
 # Production image: one small binary serving the API and the built frontend.
-# Build: docker build -t frontend-loop .    Run: see docker-compose.yml
+# Build: docker build -t whetstone .    Run: see docker-compose.yml
 
 # 1. Frontend (Vite)
 FROM node:22-alpine AS web

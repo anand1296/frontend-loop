@@ -3,7 +3,7 @@
  * self-contained HTML file using esbuild and the same content compiler as Vite.
  *
  * Outputs:
- *   dist-single/frontend-loop.html  a complete document; open it from disk or host anywhere
+ *   dist-single/whetstone.html  a complete document; open it from disk or host anywhere
  *   dist-single/artifact.html       the same app as body content only, for hosts that
  *                                   wrap pages in their own <html>/<head> (claude.ai Artifacts)
  *
@@ -35,7 +35,7 @@ const outDir = join(root, 'dist-single');
 
 function contentPlugin(content: CompiledContent, walkthroughs: CompiledWalkthroughs): Plugin {
   return {
-    name: 'frontend-loop:content',
+    name: 'whetstone:content',
     setup(builder) {
       builder.onResolve({ filter: /^virtual:(content|walkthroughs)/ }, (args) => ({ path: args.path, namespace: 'virtual-content' }));
       builder.onLoad({ filter: /.*/, namespace: 'virtual-content' }, (args) => {
@@ -107,7 +107,7 @@ const artifactHead = headInner
 const artifact = [artifactHead, styleTag, bodyInner.trim(), scriptTag, ''].join('\n');
 
 // Integrity checks: the bundle must survive byte-for-byte in both outputs.
-for (const [name, output] of [['frontend-loop.html', fullDocument], ['artifact.html', artifact]] as const) {
+for (const [name, output] of [['whetstone.html', fullDocument], ['artifact.html', artifact]] as const) {
   const start = output.indexOf(scriptTag);
   if (start === -1 || output.indexOf(scriptTag, start + 1) !== -1) {
     throw new Error(`${name}: inline bundle is missing, duplicated or altered`);
@@ -117,7 +117,7 @@ for (const [name, output] of [['frontend-loop.html', fullDocument], ['artifact.h
 if (!artifact.trimEnd().endsWith('</script>')) throw new Error('artifact.html must end with the app script');
 
 mkdirSync(outDir, { recursive: true });
-writeFileSync(join(outDir, 'frontend-loop.html'), fullDocument);
+writeFileSync(join(outDir, 'whetstone.html'), fullDocument);
 writeFileSync(join(outDir, 'artifact.html'), artifact);
 
 if (process.argv.includes('--web')) {
@@ -158,5 +158,5 @@ const kb = (text: string): string => `${(Buffer.byteLength(text) / 1024).toFixed
 console.log(
   `Built ${content.sections.length} sections, ${questions} questions in ${Math.round(performance.now() - started)} ms\n` +
     `  JS ${kb(js)} · CSS ${kb(css)} · HTML ${kb(fullDocument)}\n` +
-    `  -> dist-single/frontend-loop.html, dist-single/artifact.html`,
+    `  -> dist-single/whetstone.html, dist-single/artifact.html`,
 );

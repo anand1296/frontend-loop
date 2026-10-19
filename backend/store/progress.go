@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/progress"
+	"github.com/anand1296/whetstone/backend/progress"
 )
 
 // GetProgress returns a user's progress document (empty if they have none yet).

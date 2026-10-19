@@ -1,4 +1,4 @@
--- Frontend Loop schema, version 1.
+-- Whetstone schema, version 1.
 -- Conventions: snake_case, timestamptz everywhere, ids are text slugs for
 -- content (they are URL tokens and progress keys) and bigserial for people.
 

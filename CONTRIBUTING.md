@@ -1,4 +1,4 @@
-# Contributing to Frontend Loop
+# Contributing to Whetstone
 
 Thanks for helping! There are two ways to contribute, and both are reviewed by the owner ([@anand1296](https://github.com/anand1296)) before anything goes live.
 
@@ -7,7 +7,7 @@ Thanks for helping! There are two ways to contribute, and both are reviewed by t
 The question bank is most useful when it reflects what people are really asked.
 
 - **Members of the hosted app:** open **Behind the scenes → Contribute** in the sidebar and use the form. You get a live preview, your submission waits in the owner's review queue, and you get an email when it's been reviewed. If it's accepted it's added to the bank, credited to your GitHub handle if you ticked that box.
-- **Everyone else:** open a [question proposal](https://github.com/anand1296/frontend-loop/issues/new?template=question.yml) issue.
+- **Everyone else:** open a [question proposal](https://github.com/anand1296/whetstone/issues/new?template=question.yml) issue.
 
 What makes a good question:
 
@@ -27,8 +27,8 @@ The format is described in [docs/CONTENT_GUIDE.md](docs/CONTENT_GUIDE.md).
 ### Set up
 
 ```bash
-git clone https://github.com/<you>/frontend-loop.git
-cd frontend-loop
+git clone https://github.com/<you>/whetstone.git
+cd whetstone
 npm install
 npm run dev                  # frontend only, local-only mode: http://localhost:5173
 ```
@@ -63,7 +63,7 @@ npm run test:e2e             # optional locally, CI runs it
 
 ## Reporting bugs and security issues
 
-- Bugs and ideas: [open an issue](https://github.com/anand1296/frontend-loop/issues/new/choose).
+- Bugs and ideas: [open an issue](https://github.com/anand1296/whetstone/issues/new/choose).
 - Security problems: please **don't** open a public issue; see [SECURITY.md](SECURITY.md).
 
 ## Code of conduct

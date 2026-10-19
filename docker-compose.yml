@@ -6,7 +6,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: frontend_loop
+      POSTGRES_DB: whetstone
     ports: ['5432:5432']
     volumes: ['pgdata:/var/lib/postgresql/data']
     healthcheck:
@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/frontend_loop?sslmode=disable
+      DATABASE_URL: postgres://postgres:postgres@db:5432/whetstone?sslmode=disable
       OWNER_GITHUB_LOGIN: ${OWNER_GITHUB_LOGIN:-anand1296}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
@@ -33,7 +33,7 @@ services:
       DEV_LOGIN: ${DEV_LOGIN:-1}
       SMTP_HOST: mail
       SMTP_PORT: '1025'
-      EMAIL_FROM: Frontend Loop <loop@localhost.test>
+      EMAIL_FROM: Whetstone <loop@localhost.test>
       CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
     ports: ['8080:8080']
 

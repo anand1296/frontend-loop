@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Short records of the decisions that shaped Frontend Loop: context, decision, consequences. Format after Michael Nygard's ADRs. New decisions get the next number; superseded ones stay, marked as such.
+Short records of the decisions that shaped Whetstone: context, decision, consequences. Format after Michael Nygard's ADRs. New decisions get the next number; superseded ones stay, marked as such.
 
 ---
 
@@ -224,7 +224,7 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 
 **Context.** Cookie sessions are vulnerable to cross-site request forgery.
 
-**Decision.** All state-changing requests must carry `X-Requested-With: frontend-loop` (a cross-site page can't set it without a CORS preflight, which the API never approves), must not be `Sec-Fetch-Site: cross-site`, and if an `Origin` header is present it must equal the app origin. Cookies are `SameSite=Lax`.
+**Decision.** All state-changing requests must carry `X-Requested-With: whetstone` (a cross-site page can't set it without a CORS preflight, which the API never approves), must not be `Sec-Fetch-Site: cross-site`, and if an `Origin` header is present it must equal the app origin. Cookies are `SameSite=Lax`.
 
 **Consequences.**
 - (+) Three independent layers; any one stops classic CSRF. No token plumbing in forms.
@@ -440,3 +440,19 @@ Short records of the decisions that shaped Frontend Loop: context, decision, con
 **Consequences.**
 - (+) Self-testing is the default, with one extra click to see the answer.
 - (−) One more click for readers who just want to read; "Expand all" now shows only the full questions.
+
+---
+
+## ADR-028: Rename to Whetstone, everywhere
+
+**Status:** Accepted
+
+**Context.** The app is growing beyond frontend interviews (backend, QE, DevOps, AI/ML, audit certifications such as CISA/DISA), so "Frontend Loop" no longer fits. "Whetstone" says what the app does: it sharpens skills you already have. A registered US trademark (WHETSTONE, class 42, education software for school systems) exists; the owner accepted that risk, to be revisited before any commercial launch.
+
+**Decision.** Rename everything: the product name, Go module path, repository references, `whetstone:*` localStorage keys, the `X-Requested-With: whetstone` CSRF header, database names in dev/CI, download file names. Browsers' locally saved progress under the old keys is abandoned (accepted by the owner; signed-in users re-sync from the server). Later, per-discipline subdomains (frontend., backend., ...) can select a track.
+
+**Alternatives considered.** Keeping technical identifiers (no data loss, but a half-renamed codebase); writing a localStorage migration (more code for a pre-launch app).
+
+**Consequences.**
+- (+) One consistent name.
+- (−) Local-only progress and in-flight sessions reset once; the repo and the Vercel project must be renamed to match.

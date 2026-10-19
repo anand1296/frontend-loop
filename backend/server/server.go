@@ -21,11 +21,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/auth"
-	"github.com/anand1296/frontend-loop/backend/catalog"
-	"github.com/anand1296/frontend-loop/backend/mail"
-	"github.com/anand1296/frontend-loop/backend/store"
-	"github.com/anand1296/frontend-loop/content"
+	"github.com/anand1296/whetstone/backend/auth"
+	"github.com/anand1296/whetstone/backend/catalog"
+	"github.com/anand1296/whetstone/backend/mail"
+	"github.com/anand1296/whetstone/backend/store"
+	"github.com/anand1296/whetstone/content"
 )
 
 // Version is reported by /api/health. Overridden at build time with -ldflags.
@@ -315,7 +315,7 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 const CSRFHeader = "X-Requested-With"
 
 // CSRFValue is the expected header value.
-const CSRFValue = "frontend-loop"
+const CSRFValue = "whetstone"
 
 func (s *Server) withCSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

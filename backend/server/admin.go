@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anand1296/frontend-loop/backend/auth"
-	"github.com/anand1296/frontend-loop/backend/catalog"
-	"github.com/anand1296/frontend-loop/backend/progress"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/auth"
+	"github.com/anand1296/whetstone/backend/catalog"
+	"github.com/anand1296/whetstone/backend/progress"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 /* ---------------------------------------------------------------- people */
@@ -606,7 +606,7 @@ func (s *Server) exportAll(w http.ResponseWriter, r *http.Request, _ store.User)
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="frontend-loop-content.zip"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="whetstone-content.zip"`)
 	_, _ = w.Write(buf.Bytes())
 }
 

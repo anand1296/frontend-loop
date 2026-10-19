@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/anand1296/frontend-loop/backend/markdown"
-	"github.com/anand1296/frontend-loop/backend/store"
+	"github.com/anand1296/whetstone/backend/markdown"
+	"github.com/anand1296/whetstone/backend/store"
 )
 
 // Site holds deployment-wide settings the owner controls.
@@ -26,7 +26,7 @@ type Site struct {
 // defaultSite is private by default: visitors land on the sign-in screen and
 // only invited people get in. The owner can open it up in Features & settings.
 func defaultSite() Site {
-	return Site{Name: "Frontend Loop", Tagline: "", Registration: "invite", ContentAccess: "members"}
+	return Site{Name: "Whetstone", Tagline: "", Registration: "invite", ContentAccess: "members"}
 }
 
 func (s Site) validate() string {
