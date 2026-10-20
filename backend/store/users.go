@@ -295,6 +295,10 @@ type Invite struct {
 	CreatedAt time.Time  `json:"createdAt"`
 	ExpiresAt time.Time  `json:"expiresAt"`
 	RevokedAt *time.Time `json:"revokedAt"`
+	// Token is the raw link token, kept so the owner can copy the link again later. It is
+	// never serialised here; the admin handler adds the URL for owners only. Empty for
+	// invites created before migration 004.
+	Token string `json:"-"`
 }
 
 // Status is "active", "used", "expired" or "revoked".
@@ -310,32 +314,35 @@ func (i Invite) Status(now time.Time) string {
 	return "active"
 }
 
-const inviteColumns = `i.id, i.role, i.note, i.max_uses, i.uses, u.login, i.created_at, i.expires_at, i.revoked_at`
+const inviteColumns = `i.id, i.role, i.note, i.max_uses, i.uses, u.login, i.created_at, i.expires_at, i.revoked_at, i.token`
 
 func scanInvite(row scanner) (Invite, error) {
 	var inv Invite
 	var createdBy sql.NullString
 	var revoked sql.NullTime
-	err := row.Scan(&inv.ID, &inv.Role, &inv.Note, &inv.MaxUses, &inv.Uses, &createdBy, &inv.CreatedAt, &inv.ExpiresAt, &revoked)
+	var token sql.NullString
+	err := row.Scan(&inv.ID, &inv.Role, &inv.Note, &inv.MaxUses, &inv.Uses, &createdBy, &inv.CreatedAt, &inv.ExpiresAt, &revoked, &token)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Invite{}, ErrNotFound
 	}
 	if createdBy.Valid {
 		inv.CreatedBy = &createdBy.String
 	}
+	inv.Token = token.String
 	if revoked.Valid {
 		inv.RevokedAt = &revoked.Time
 	}
 	return inv, err
 }
 
-// CreateInvite stores a new invite (only the token's hash).
-func (s *Store) CreateInvite(ctx context.Context, actorID int64, tokenHash []byte, role, note string, maxUses int, expires time.Time) (Invite, error) {
+// CreateInvite stores a new invite: the token's hash (used to look it up) and the token
+// itself (so the owner can copy the link again).
+func (s *Store) CreateInvite(ctx context.Context, actorID int64, token string, tokenHash []byte, role, note string, maxUses int, expires time.Time) (Invite, error) {
 	var inv Invite
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
 		var id int64
-		if err := tx.QueryRowContext(ctx, `INSERT INTO invites (token_hash, role, note, max_uses, created_by, expires_at)
-			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, tokenHash, role, note, maxUses, nullID(actorID), expires).Scan(&id); err != nil {
+		if err := tx.QueryRowContext(ctx, `INSERT INTO invites (token_hash, token, role, note, max_uses, created_by, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, tokenHash, token, role, note, maxUses, nullID(actorID), expires).Scan(&id); err != nil {
 			return err
 		}
 		var err error

@@ -138,9 +138,12 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, actor store.
 type inviteView struct {
 	store.Invite
 	Status string `json:"status"`
+	// URL is the shareable link. Only the owner receives it, and only for invites that
+	// still store their token (older ones do not).
+	URL string `json:"url,omitempty"`
 }
 
-func (s *Server) listInvites(w http.ResponseWriter, r *http.Request, _ store.User) {
+func (s *Server) listInvites(w http.ResponseWriter, r *http.Request, actor store.User) {
 	invites, err := s.store.ListInvites(r.Context())
 	if err != nil {
 		s.storeError(w, r, err)
@@ -148,12 +151,16 @@ func (s *Server) listInvites(w http.ResponseWriter, r *http.Request, _ store.Use
 	}
 	out := make([]inviteView, 0, len(invites))
 	for _, inv := range invites {
-		out = append(out, inviteView{inv, inv.Status(s.now())})
+		view := inviteView{Invite: inv, Status: inv.Status(s.now())}
+		if actor.Role == store.RoleOwner && inv.Token != "" {
+			view.URL = s.origin(r) + "/?invite=" + inv.Token
+		}
+		out = append(out, view)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
-// createInvite returns the link exactly once; only its hash is stored.
+// createInvite returns the link right away; the owner can copy it again from the list.
 func (s *Server) createInvite(w http.ResponseWriter, r *http.Request, actor store.User) {
 	var body struct {
 		Role      string `json:"role"`
@@ -196,13 +203,13 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request, actor stor
 		s.storeError(w, r, err)
 		return
 	}
-	inv, err := s.store.CreateInvite(r.Context(), actor.ID, auth.Hash(token), body.Role, body.Note, body.MaxUses, s.now().Add(time.Duration(body.ExpiresIn)*24*time.Hour))
+	inv, err := s.store.CreateInvite(r.Context(), actor.ID, token, auth.Hash(token), body.Role, body.Note, body.MaxUses, s.now().Add(time.Duration(body.ExpiresIn)*24*time.Hour))
 	if err != nil {
 		s.storeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"invite": inviteView{inv, inv.Status(s.now())},
+		"invite": inviteView{Invite: inv, Status: inv.Status(s.now())},
 		"url":    s.origin(r) + "/?invite=" + token,
 	})
 }

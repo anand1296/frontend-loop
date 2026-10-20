@@ -22,7 +22,7 @@ Full matrix: docs/SPEC.md §2.5.
 
 ### Inviting people
 
-Admin → **Invites** → choose *who it's for* (a note only admins see), *joins as* (learner; admin if you're the owner), *can be used* (once, or 5/25/100 times for a group link) and *expires after* → **Create invite link** → copy and send it.
+Admin → **Invites** → choose *who it's for* (a note only admins see), *joins as* (learner; admin if you're the owner), *can be used* (once, or 5/25/100 times for a group link) and *expires after* → **Create invite link** → copy and send it. The owner can copy the link again any time from the *Invite links* table (**Copy link**); invites created before this change (migration 004) only keep a fingerprint, so their link can't be shown.
 
 - The link is shown **once**; the server stores only a fingerprint (hash). Lost it? Revoke it and create another.
 - The person opens the link, sees who invited them, and signs in with GitHub. Their account is created with the invite's role.
