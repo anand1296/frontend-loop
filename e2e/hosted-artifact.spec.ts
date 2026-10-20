@@ -36,7 +36,7 @@ test.describe('hosted artifact build', () => {
       await page.goto('https://artifact.test/');
       const app = page.frameLocator('iframe');
       await expect(app.getByRole('heading', { level: 1 })).toHaveText(/Your interview loop/);
-      await expect(app.locator('.loop-ring')).toContainText('/109');
+      await expect(app.locator('.loop-ring')).toContainText('/112');
 
       // Core interaction works even when storage is blocked (no allow-same-origin).
       await app.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Accessibility' }).click();
