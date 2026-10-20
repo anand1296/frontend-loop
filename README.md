@@ -2,7 +2,7 @@
 
 > Formerly "Frontend Loop". Sharpen your skills for interviews and exams.
 
-**Interview prep for senior, lead and principal engineers.** 109 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
+**Interview prep for senior, lead and principal engineers.** 112 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
 Version 2 adds a **Go + Postgres backend**: GitHub sign-in, synced progress across devices, invite links, roles (owner, admins, learners) and an **admin console** where you can add and edit rounds and questions live (preview, drafts, history, trash), see learners' progress, switch features and post announcements, with no code changes or deploys.
 
@@ -221,7 +221,7 @@ whetstone/
 | --- | --- | --- |
 | Go unit | 15 | Markdown rendering and safety, every code language, content parsing/validation/export round-trip, progress merge properties |
 | Go integration (real Postgres) | 16 | Every API rule over HTTP: invites, roles, disabling, expiry, open/members-only, settings, full CMS lifecycle, revisions, trash, ETags, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth (fake provider), concurrent invite race, serverless entry, email reminders, community submissions |
-| Renderer parity | 109 answers | Go and TypeScript renderers produce the same documents |
+| Renderer parity | 112 answers | Go and TypeScript renderers produce the same documents |
 | TypeScript unit | 45 | Walkthrough compiler, content compiler, progress model, search, selectors, sync protocols (Artifact and HTTP), language-list parity |
 | E2E static | 12 | Study flows, How it's built, Contribute, hosted Artifact build in a sandboxed CSP frame, mobile |
 | E2E full stack | 4 | Owner edits content and settings and invites; learner joins, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves, it's credited |

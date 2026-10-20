@@ -1,8 +1,164 @@
 ---
 id: async-utilities
 title: Async Patterns & JS Machine Coding
-description: The utilities interviewers ask you to write from scratch, done properly: promise combinators, pools with cancellation, retries, debounce, caches and emitters.
+description: The utilities interviewers ask you to write from scratch, done properly: promises vs async/await, promise combinators, pools with cancellation, retries, debounce, caches and emitters.
 ---
+
+## Promises vs async/await: what actually differs, with the ordering, error and parallelism traps
+<!--
+id: promises-vs-async-await
+level: senior
+tags: promises, async await, microtasks, error handling, javascript fundamentals
+minutes: 20
+-->
+
+> [!PROMPT]
+> What is the difference between Promises and `async`/`await`? Give practical examples of when you would use each, and predict the output of a snippet that mixes them.
+>
+> **Requirements**
+> - Explain what `async` and `await` desugar to, and that they are not a separate mechanism.
+> - Show sequential vs parallel awaiting, error handling in both styles, and one ordering puzzle.
+>
+> **Test cases**
+> - Predict the output order of the snippet below, including `setTimeout`.
+> - Say which of `return fetchJson()` and `return await fetchJson()` lets a surrounding `catch` run, and why.
+> - Fix a loop that awaits independent requests one by one.
+
+> [!TLDR]
+> `async`/`await` is syntax over promises, not an alternative to them. An `async` function always returns a promise; `await x` wraps `x` in a promise and resumes the function in a microtask when it settles, throwing on rejection. Same scheduling, same states. Use `await` for control flow (branches, loops, `try`/`catch`/`finally`) and promise methods for composition (`Promise.all`, `race`, `allSettled`, `any`) and for wrapping callback APIs. Most real bugs come from accidental sequential awaits, missing `await`, `return` vs `return await` inside `try`, and `forEach(async …)`.
+
+### Same thing, two styles
+
+```ts
+// Promise chain
+function loadProfile(id: string) {
+  return fetchUser(id)
+    .then((user) => fetchTeam(user.teamId).then((team) => ({ user, team })))
+    .catch((error) => {
+      logError(error);
+      throw error;
+    });
+}
+
+// async/await: the same promises, read top to bottom
+async function loadProfile(id: string) {
+  try {
+    const user = await fetchUser(id);
+    const team = await fetchTeam(user.teamId); // can use `user` without nesting
+    return { user, team };
+  } catch (error) {
+    logError(error);
+    throw error;
+  }
+}
+```
+
+Differences that are real: readability with branches and loops, `try`/`finally`, access to earlier values without nesting, and better stack traces. Differences that are not: scheduling, the promise states, or what a rejected promise means.
+
+### Predict the output
+
+```ts
+console.log('A');
+setTimeout(() => console.log('timeout'), 0);
+Promise.resolve()
+  .then(() => console.log('then 1'))
+  .then(() => console.log('then 2'));
+(async () => {
+  console.log('B');
+  await null;
+  console.log('after await');
+})();
+console.log('C');
+```
+
+Output: `A`, `B`, `C`, `then 1`, `after await`, `then 2`, `timeout`.
+
+Code before the first `await` runs synchronously, so `B` prints before `C`. The `await` schedules the rest of the function as a microtask, queued after `then 1` and before `then 2` (which is only queued when `then 1` runs). All microtasks drain before the timer task.
+
+### Sequential vs parallel
+
+```ts
+// ~ t1 + t2: the second request does not start until the first finishes
+const user = await getUser(id);
+const posts = await getPosts(id);
+
+// ~ max(t1, t2): start both, then wait
+const [user2, posts2] = await Promise.all([getUser(id), getPosts(id)]);
+
+// Same idea, keeping the two awaits readable (start early, await late)
+const postsPromise = getPosts(id);
+const user3 = await getUser(id);
+const posts3 = await postsPromise;
+```
+
+Use sequential only when the second call depends on the first. In a loop over independent items, build the promises first and `await Promise.all(items.map(fn))`; with limits, use a pool.
+
+> [!WARNING]
+> In the "start early, await late" form, if `postsPromise` rejects while you are still waiting on `getUser`, there is a window where it has no handler. Prefer `Promise.all`, which attaches handlers immediately.
+
+### Error handling and `return await`
+
+```ts
+async function a() {
+  try {
+    return fetchJson('/api'); // returns the promise: a rejection escapes the function, catch is skipped
+  } catch {
+    return fallback;
+  }
+}
+
+async function b() {
+  try {
+    return await fetchJson('/api'); // awaited inside try: the catch runs on rejection
+  } catch {
+    return fallback;
+  }
+}
+```
+
+With promises the equivalent mistake is attaching `.catch` in the wrong place, or forgetting to return the inner promise from `.then`, which makes the outer chain continue too early and swallows the error.
+
+### Where each style wins
+
+- **Promise methods**: `Promise.all`, `race`, `allSettled`, `any`; small pipelines (`fetch(url).then(r => r.json())`); and wrapping callbacks with `new Promise` (`promisify`).
+- **async/await**: sequential steps with branching, loops with early exit, `try`/`catch`/`finally`, and anything you would otherwise nest.
+- Mix them: `await Promise.all(...)` is the normal shape of real code.
+
+```ts
+// Promisifying a callback API: this is where `new Promise` is the right tool
+const delay = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    }, { once: true });
+  });
+```
+
+### Common traps
+
+- `items.forEach(async (item) => { await save(item); })` does not wait: `forEach` ignores the returned promises. Use `for...of` with `await` (sequential) or `await Promise.all(items.map(save))` (parallel).
+- A promise created without `await`, `return` or `.catch` is "floating": its rejection becomes an unhandled rejection. Lint with `@typescript-eslint/no-floating-promises`.
+- `new Promise(async (resolve) => …)`: errors thrown in the async executor are not captured by the promise.
+- `await` in a loop for independent requests: accidentally sequential.
+- `.then(console.log())` passes `undefined`; pass the function, not its result.
+- `Promise.all` rejects on the first failure but does not cancel the others; use `AbortController` if they should stop.
+
+### Follow-ups
+
+- **Does `await` always take one tick?** For native promises, `await p` takes one microtask turn in modern engines; awaiting a non-native thenable costs extra turns because it must be adopted first. Do not write code that depends on exact tick counts.
+- **Is `async` slower?** The cost is a promise per call plus the continuation; it is rarely measurable outside hot loops.
+- **Top-level `await`?** Allowed in ES modules; it blocks the evaluation of modules that import it, so keep it off shared entry points.
+- **How would you add a timeout?** `Promise.race([work, delay(ms).then(() => { throw new Error('timeout'); })])`, and abort the work with a signal so it does not keep running.
+
+### References
+
+- [MDN: async function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function)
+- [MDN: Using promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises)
+- [javascript.info: Async/await](https://javascript.info/async-await)
+- [V8: Faster async functions and promises](https://v8.dev/blog/fast-async)
+
 
 ## Implement `Promise.all`, `allSettled`, `any` and `race`, and explain their failure semantics
 <!--

@@ -27,7 +27,7 @@ The repository is already set up for Vercel: `vercel.json` builds the Vite front
 1. In the Vercel project: **Storage → Create Database → Neon (Serverless Postgres)** → free plan, region close to your Vercel functions (e.g. Washington D.C. `iad1`, or Mumbai if you moved functions there).
 2. Connect it to the project for **Production** and **Preview**. Vercel adds `DATABASE_URL` (and `POSTGRES_URL` etc.) automatically.
 
-The first request after deploy creates the schema and seeds the 109 questions from `content/*.md`.
+The first request after deploy creates the schema and seeds the 112 questions from `content/*.md`.
 
 What you'll see after each step: no database → setup checklist; database but no GitHub OAuth app → the sign-in screen says GitHub sign-in isn't switched on; everything set → the sign-in screen with **Continue with GitHub**. Sign in as `anand1296` and the sidebar shows **Admin · Super admin**; invite people from Admin → Invites.
 
