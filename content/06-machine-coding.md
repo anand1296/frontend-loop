@@ -1,7 +1,7 @@
 ---
 id: machine-coding
 title: Machine Coding
-description: Timed UI builds done to a senior bar: accessible typeahead, virtual list, modal, OTP input, undo/redo, infinite feed, accurate timers and an uploader.
+description: Timed UI builds done to a senior bar: accessible typeahead, virtual list, modal, OTP input, undo/redo, infinite feed, accurate timers, an uploader, a kanban board and a queued progress bar.
 ---
 
 ## Build an accessible typeahead (combobox) with debounced search and race-safe results
@@ -2244,3 +2244,875 @@ The `run` callback updates the item store (`uploading` with `loaded`, then `done
 - [MDN: XMLHttpRequest upload progress](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/upload)
 - [AWS: Uploading with presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html)
 - [tus resumable upload protocol](https://tus.io/)
+
+
+## Build a Trello-style kanban board: lists, cards, drag and drop between lists, persisted on reload
+<!--
+id: kanban-board-dnd
+level: lead
+tags: machine coding, kanban, drag and drop, state management, persistence, accessibility
+minutes: 60
+-->
+
+> [!PROMPT]
+> Build a Jira/Trello-like board in two hours. Users can create several lists (columns), add and delete cards, and drag cards between lists and within a list. Bonus: the board survives a page reload.
+>
+> **Requirements**
+> - Components and state organised so that new features (rename, labels, due dates) are additions, not rewrites.
+> - Dropping a card at a specific position inside a list puts it there.
+> - Keyboard users can move a card without dragging.
+>
+> **Test cases**
+> - Adding a card to "Todo" shows it at the bottom of that list; deleting it removes it everywhere.
+> - Dragging card B from "Todo" onto the middle of "Doing" inserts it at that index and removes it from "Todo".
+> - Dropping a card where it already is changes nothing (and does not trigger a save).
+> - Deleting a list also removes its cards from storage.
+> - Reloading restores lists, cards and order; corrupted storage falls back to an empty board instead of crashing.
+
+> [!TLDR]
+> Normalise the state (`lists` hold ordered `cardIds`, `cards` hold the data) and put every change behind one pure reducer, with `moveCard` as the interesting action. Drag and drop is only an input device: it computes a target list and an index and dispatches `moveCard`. Persist with a debounced, versioned, validated `localStorage` write. Always offer a keyboard path (a "Move to…" select), because native drag and drop is mouse-only.
+
+### What they are evaluating
+
+Component structure, state shape, the drag interaction, and whether the code would survive the next three feature requests. Say the scope out loud first: no auth, no server, one board, `localStorage` as the "database", and a clear order of work (state and reducer, then UI, then drag, then persistence, then keyboard support).
+
+### State shape and the reducer (framework-neutral)
+
+Nested `lists[].cards[]` is easy to render and painful to update: moving a card means rewriting two lists deep inside a tree. Normalise instead, so a move changes exactly two small arrays.
+
+```ts
+export interface Card { id: string; title: string }
+export interface List { id: string; title: string; cardIds: string[] }
+export interface Board {
+  listOrder: string[];
+  lists: Record<string, List>;
+  cards: Record<string, Card>;
+}
+
+export type Action =
+  | { type: 'addList'; id: string; title: string }
+  | { type: 'deleteList'; listId: string }
+  | { type: 'addCard'; id: string; listId: string; title: string }
+  | { type: 'deleteCard'; listId: string; cardId: string }
+  // toIndex is the position in the target list AFTER the card has been removed from its old spot.
+  | { type: 'moveCard'; cardId: string; toListId: string; toIndex: number };
+
+export const emptyBoard = (): Board => ({ listOrder: [], lists: {}, cards: {} });
+
+export function reduce(board: Board, action: Action): Board {
+  switch (action.type) {
+    case 'addList':
+      return {
+        ...board,
+        listOrder: [...board.listOrder, action.id],
+        lists: { ...board.lists, [action.id]: { id: action.id, title: action.title, cardIds: [] } },
+      };
+    case 'deleteList': {
+      const list = board.lists[action.listId];
+      if (!list) return board;
+      const { [action.listId]: _removed, ...lists } = board.lists;
+      const cards = { ...board.cards };
+      for (const id of list.cardIds) delete cards[id]; // no orphaned cards left in storage
+      return { listOrder: board.listOrder.filter((id) => id !== action.listId), lists, cards };
+    }
+    case 'addCard': {
+      const list = board.lists[action.listId];
+      if (!list) return board;
+      return {
+        ...board,
+        cards: { ...board.cards, [action.id]: { id: action.id, title: action.title } },
+        lists: { ...board.lists, [list.id]: { ...list, cardIds: [...list.cardIds, action.id] } },
+      };
+    }
+    case 'deleteCard': {
+      const list = board.lists[action.listId];
+      if (!list) return board;
+      const { [action.cardId]: _removed, ...cards } = board.cards;
+      return { ...board, cards, lists: { ...board.lists, [list.id]: { ...list, cardIds: list.cardIds.filter((id) => id !== action.cardId) } } };
+    }
+    case 'moveCard':
+      return moveCard(board, action.cardId, action.toListId, action.toIndex);
+  }
+}
+
+function moveCard(board: Board, cardId: string, toListId: string, toIndex: number): Board {
+  const from = Object.values(board.lists).find((list) => list.cardIds.includes(cardId));
+  const to = board.lists[toListId];
+  if (!from || !to) return board;
+
+  const remaining = from.cardIds.filter((id) => id !== cardId);
+  const target = from.id === to.id ? remaining : to.cardIds;
+  const index = Math.max(0, Math.min(toIndex, target.length));
+  const next = [...target.slice(0, index), cardId, ...target.slice(index)];
+
+  if (from.id === to.id && next.every((id, i) => id === from.cardIds[i])) return board; // dropped where it was: same reference, no re-render, no save
+  return { ...board, lists: { ...board.lists, [from.id]: { ...from, cardIds: remaining }, [to.id]: { ...to, cardIds: next } } };
+}
+```
+
+The reducer is pure and framework-free, so it is unit-testable in a dozen lines and reusable if the framework changes. Ids are generated by the caller (`crypto.randomUUID()`), which keeps the reducer deterministic.
+
+### Persistence that survives bad data
+
+```ts
+const KEY = 'board:v1'; // version the key: a future shape change can migrate or ignore old data
+
+function isBoard(value: unknown): value is Board {
+  if (typeof value !== 'object' || value === null) return false;
+  const { listOrder, lists, cards } = value as Partial<Board>;
+  if (!Array.isArray(listOrder) || typeof lists !== 'object' || lists === null || typeof cards !== 'object' || cards === null) return false;
+  return listOrder.every((id) => id in lists) && Object.values(lists).every((list) => list.cardIds.every((id) => id in cards));
+}
+
+export function loadBoard(): Board {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+    return isBoard(parsed) ? parsed : emptyBoard();
+  } catch {
+    return emptyBoard(); // corrupted JSON or storage blocked
+  }
+}
+
+export function saveBoard(board: Board): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(board));
+  } catch {
+    /* quota exceeded or private mode: the board still works in memory */
+  }
+}
+```
+
+Save from an effect on the state, debounced (a drag produces one `moveCard`, but typing and bulk edits can be chatty). Because `moveCard` returns the same reference for a no-op drop, change detection sees nothing to save.
+
+### Where a drop lands
+
+Native HTML5 drag and drop tells you which list the pointer is over, not which index. Compute the index from the pointer's Y position against the midpoints of the cards that are not being dragged; excluding the dragged card makes the result the "after removal" index the reducer expects.
+
+```ts
+export function dropIndex(listElement: HTMLElement, clientY: number): number {
+  const cards = [...listElement.querySelectorAll<HTMLElement>('[data-card-id]:not([data-dragging])')];
+  const index = cards.findIndex((card) => {
+    const box = card.getBoundingClientRect();
+    return clientY < box.top + box.height / 2;
+  });
+  return index === -1 ? cards.length : index;
+}
+```
+
+:::react
+### Implementation (React)
+
+One `useReducer`, one debounced save effect, small components. The list handles `dragover` and `drop` once for all its cards.
+
+```tsx
+import { useEffect, useReducer, useState, type FormEvent } from 'react';
+import { reduce, loadBoard, saveBoard, type Board, type Action } from './board';
+import { dropIndex } from './dropIndex';
+
+function useBoard() {
+  const [board, dispatch] = useReducer(reduce, undefined, loadBoard);
+  useEffect(() => {
+    const timer = setTimeout(() => saveBoard(board), 200);
+    return () => clearTimeout(timer); // only the last state in a burst is written
+  }, [board]);
+  return [board, dispatch] as const;
+}
+
+export function BoardView() {
+  const [board, dispatch] = useBoard();
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+
+  const addList = (event: FormEvent) => {
+    event.preventDefault();
+    if (!title.trim()) return;
+    dispatch({ type: 'addList', id: crypto.randomUUID(), title: title.trim() });
+    setTitle('');
+  };
+
+  return (
+    <div className="board">
+      {board.listOrder.map((listId) => (
+        <ListView key={listId} board={board} listId={listId} dispatch={dispatch} dragging={dragging} setDragging={setDragging} />
+      ))}
+      <form onSubmit={addList} className="add-list">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="New list name" placeholder="Add a list" />
+        <button>Add list</button>
+      </form>
+    </div>
+  );
+}
+
+function ListView({ board, listId, dispatch, dragging, setDragging }: {
+  board: Board; listId: string; dispatch: (action: Action) => void;
+  dragging: string | null; setDragging: (id: string | null) => void;
+}) {
+  const list = board.lists[listId];
+  const [title, setTitle] = useState('');
+  if (!list) return null;
+
+  return (
+    <section
+      className="list"
+      aria-label={list.title}
+      onDragOver={(event) => {
+        if (dragging) event.preventDefault(); // without this the browser refuses the drop
+      }}
+      onDrop={(event) => {
+        const cardId = event.dataTransfer.getData('text/plain');
+        if (cardId) dispatch({ type: 'moveCard', cardId, toListId: list.id, toIndex: dropIndex(event.currentTarget, event.clientY) });
+        setDragging(null);
+      }}
+    >
+      <header>
+        <h2>{list.title}</h2>
+        <button onClick={() => dispatch({ type: 'deleteList', listId: list.id })} aria-label={`Delete list ${list.title}`}>×</button>
+      </header>
+      <ul>
+        {list.cardIds.map((cardId) => {
+          const card = board.cards[cardId];
+          if (!card) return null;
+          return (
+            <li
+              key={card.id}
+              data-card-id={card.id}
+              data-dragging={dragging === card.id ? '' : undefined}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData('text/plain', card.id);
+                event.dataTransfer.effectAllowed = 'move';
+                setDragging(card.id);
+              }}
+              onDragEnd={() => setDragging(null)}
+            >
+              <span>{card.title}</span>
+              {/* Keyboard and screen-reader path: native drag and drop has none. */}
+              <select
+                aria-label={`Move "${card.title}" to`}
+                value={list.id}
+                onChange={(event) => dispatch({ type: 'moveCard', cardId: card.id, toListId: event.target.value, toIndex: Infinity })}
+              >
+                {board.listOrder.map((id) => <option key={id} value={id}>{board.lists[id]?.title}</option>)}
+              </select>
+              <button onClick={() => dispatch({ type: 'deleteCard', listId: list.id, cardId: card.id })} aria-label={`Delete ${card.title}`}>×</button>
+            </li>
+          );
+        })}
+      </ul>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!title.trim()) return;
+          dispatch({ type: 'addCard', id: crypto.randomUUID(), listId: list.id, title: title.trim() });
+          setTitle('');
+        }}
+      >
+        <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label={`New card in ${list.title}`} />
+        <button>Add card</button>
+      </form>
+    </section>
+  );
+}
+```
+
+React notes for the interview:
+
+- `ListView` re-renders on every board change; for large boards split cards into a `memo`'d `CardView` keyed by id (the reducer keeps untouched card objects referentially equal, so `memo` works).
+- State that only the drag needs (`dragging`) stays out of the persisted board.
+- For production, `dnd-kit` gives pointer, touch and keyboard sensors, collision detection and live placeholders; native drag and drop has no touch support on many mobile browsers.
+:::
+
+:::angular
+### Implementation (Angular)
+
+A signal-based store service wraps the same reducer, and the CDK drag-drop module supplies the interaction (pointer, touch, animation). The drop handler only dispatches `moveCard`; do not use `transferArrayItem`, which would mutate arrays behind the store's back.
+
+```ts
+import { Injectable, computed, effect, signal } from '@angular/core';
+import { reduce, loadBoard, saveBoard, type Action } from './board';
+
+@Injectable({ providedIn: 'root' })
+export class BoardStore {
+  private readonly state = signal(loadBoard());
+
+  readonly columns = computed(() => {
+    const board = this.state();
+    return board.listOrder.flatMap((id) => {
+      const list = board.lists[id];
+      return list ? [{ ...list, cards: list.cardIds.flatMap((cardId) => board.cards[cardId] ?? []) }] : [];
+    });
+  });
+
+  constructor() {
+    effect((onCleanup) => {
+      const board = this.state();
+      const timer = setTimeout(() => saveBoard(board), 200);
+      onCleanup(() => clearTimeout(timer));
+    });
+  }
+
+  dispatch(action: Action): void {
+    this.state.update((board) => reduce(board, action));
+  }
+}
+```
+
+```ts
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
+import { BoardStore } from './board.store';
+
+@Component({
+  selector: 'app-board',
+  imports: [CdkDropListGroup, CdkDropList, CdkDrag],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="board" cdkDropListGroup>
+      @for (column of store.columns(); track column.id) {
+        <section class="list" [attr.aria-label]="column.title">
+          <header>
+            <h2>{{ column.title }}</h2>
+            <button (click)="store.dispatch({ type: 'deleteList', listId: column.id })" [attr.aria-label]="'Delete list ' + column.title">×</button>
+          </header>
+          <ul cdkDropList [cdkDropListData]="column.id" (cdkDropListDropped)="onDrop($event)">
+            @for (card of column.cards; track card.id) {
+              <li cdkDrag [cdkDragData]="card.id">
+                <span>{{ card.title }}</span>
+                <select [attr.aria-label]="'Move ' + card.title + ' to'" (change)="moveTo(card.id, $any($event.target).value)">
+                  @for (target of store.columns(); track target.id) {
+                    <option [value]="target.id" [selected]="target.id === column.id">{{ target.title }}</option>
+                  }
+                </select>
+                <button (click)="store.dispatch({ type: 'deleteCard', listId: column.id, cardId: card.id })" [attr.aria-label]="'Delete ' + card.title">×</button>
+              </li>
+            }
+          </ul>
+          <form (submit)="addCard($event, column.id, title)">
+            <input #title [attr.aria-label]="'New card in ' + column.title" />
+            <button>Add card</button>
+          </form>
+        </section>
+      }
+      <form (submit)="addList($event, listName)" class="add-list">
+        <input #listName aria-label="New list name" placeholder="Add a list" />
+        <button>Add list</button>
+      </form>
+    </div>
+  `,
+})
+export class BoardComponent {
+  protected readonly store = inject(BoardStore);
+
+  protected onDrop(event: CdkDragDrop<string, string, string>): void {
+    // currentIndex is already the final index in the target list.
+    this.store.dispatch({ type: 'moveCard', cardId: event.item.data, toListId: event.container.data, toIndex: event.currentIndex });
+  }
+
+  protected moveTo(cardId: string, toListId: string): void {
+    this.store.dispatch({ type: 'moveCard', cardId, toListId, toIndex: Number.POSITIVE_INFINITY });
+  }
+
+  protected addCard(event: Event, listId: string, input: HTMLInputElement): void {
+    event.preventDefault();
+    const title = input.value.trim();
+    if (!title) return;
+    this.store.dispatch({ type: 'addCard', id: crypto.randomUUID(), listId, title });
+    input.value = '';
+  }
+
+  protected addList(event: Event, input: HTMLInputElement): void {
+    event.preventDefault();
+    const title = input.value.trim();
+    if (!title) return;
+    this.store.dispatch({ type: 'addList', id: crypto.randomUUID(), title });
+    input.value = '';
+  }
+}
+```
+
+Angular notes for the interview:
+
+- `cdkDropListGroup` connects every list inside it, so cards can cross lists without wiring `cdkDropListConnectedTo` by hand.
+- Because `track card.id` keeps DOM nodes stable and the store replaces arrays immutably, CDK's drop animation and the re-render agree on where the card ends up.
+- The CDK also handles touch and auto-scroll; it does not give keyboard dragging, so keep the select (or add your own handlers).
+:::
+
+:::vue
+### Implementation (Vue)
+
+A composable holds the board in a `shallowRef` (replaced wholesale by the reducer, so deep reactivity would be wasted work) and saves with a debounced watcher. The template uses native drag events and the shared `dropIndex`.
+
+```ts
+// useBoard.ts
+import { onWatcherCleanup, shallowRef, watch } from 'vue';
+import { reduce, loadBoard, saveBoard, type Action } from './board';
+
+export function useBoard() {
+  const board = shallowRef(loadBoard());
+
+  const dispatch = (action: Action) => {
+    board.value = reduce(board.value, action);
+  };
+
+  watch(board, (value) => {
+    const timer = setTimeout(() => saveBoard(value), 200);
+    onWatcherCleanup(() => clearTimeout(timer)); // Vue 3.5+: only the last change in a burst is written
+  });
+
+  return { board, dispatch };
+}
+```
+
+```vue
+<!-- BoardView.vue -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useBoard } from './useBoard';
+import { dropIndex } from './dropIndex';
+
+const { board, dispatch } = useBoard();
+const dragging = ref<string | null>(null);
+const listName = ref('');
+const cardTitles = ref<Record<string, string>>({});
+
+function addList() {
+  const title = listName.value.trim();
+  if (!title) return;
+  dispatch({ type: 'addList', id: crypto.randomUUID(), title });
+  listName.value = '';
+}
+
+function addCard(listId: string) {
+  const title = (cardTitles.value[listId] ?? '').trim();
+  if (!title) return;
+  dispatch({ type: 'addCard', id: crypto.randomUUID(), listId, title });
+  cardTitles.value[listId] = '';
+}
+
+function onDrop(event: DragEvent, listId: string) {
+  const cardId = event.dataTransfer?.getData('text/plain');
+  if (cardId && event.currentTarget instanceof HTMLElement) {
+    dispatch({ type: 'moveCard', cardId, toListId: listId, toIndex: dropIndex(event.currentTarget, event.clientY) });
+  }
+  dragging.value = null;
+}
+
+function onDragStart(event: DragEvent, cardId: string) {
+  event.dataTransfer?.setData('text/plain', cardId);
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  dragging.value = cardId;
+}
+</script>
+
+<template>
+  <div class="board">
+    <section
+      v-for="listId in board.listOrder"
+      :key="listId"
+      class="list"
+      :aria-label="board.lists[listId]?.title"
+      @dragover="dragging && $event.preventDefault()"
+      @drop="onDrop($event, listId)"
+    >
+      <header>
+        <h2>{{ board.lists[listId]?.title }}</h2>
+        <button :aria-label="`Delete list ${board.lists[listId]?.title}`" @click="dispatch({ type: 'deleteList', listId })">×</button>
+      </header>
+      <ul>
+        <li
+          v-for="cardId in board.lists[listId]?.cardIds"
+          :key="cardId"
+          :data-card-id="cardId"
+          :data-dragging="dragging === cardId ? '' : undefined"
+          draggable="true"
+          @dragstart="onDragStart($event, cardId)"
+          @dragend="dragging = null"
+        >
+          <span>{{ board.cards[cardId]?.title }}</span>
+          <select
+            :aria-label="`Move ${board.cards[cardId]?.title} to`"
+            :value="listId"
+            @change="dispatch({ type: 'moveCard', cardId, toListId: ($event.target as HTMLSelectElement).value, toIndex: Infinity })"
+          >
+            <option v-for="id in board.listOrder" :key="id" :value="id">{{ board.lists[id]?.title }}</option>
+          </select>
+          <button :aria-label="`Delete ${board.cards[cardId]?.title}`" @click="dispatch({ type: 'deleteCard', listId, cardId })">×</button>
+        </li>
+      </ul>
+      <form @submit.prevent="addCard(listId)">
+        <input v-model="cardTitles[listId]" :aria-label="`New card in ${board.lists[listId]?.title}`" />
+        <button>Add card</button>
+      </form>
+    </section>
+    <form class="add-list" @submit.prevent="addList">
+      <input v-model="listName" aria-label="New list name" placeholder="Add a list" />
+      <button>Add list</button>
+    </form>
+  </div>
+</template>
+```
+
+Vue notes for the interview:
+
+- `shallowRef` plus whole-object replacement matches the reducer's immutable style; with a deep `ref`/`reactive` store you would mutate in place instead and lose the easy "no-op returns the same reference" check.
+- `v-for` needs `:key` on both loops, or Vue patches DOM nodes in place and the dragged element's identity is lost.
+- For production, `vuedraggable` (SortableJS) or `@vueuse/integrations/useSortable` handles touch and animation.
+:::
+
+### Why this design
+
+- **Normalised state + reducer**: moves touch two arrays, deleting a list cleans its cards, and the whole behaviour is testable without a DOM.
+- **Drag as an input, not as state**: the library or native events only produce `(cardId, toListId, toIndex)`. Swap native events for a library, add keyboard moves, or add a "move to top" menu without touching the logic.
+- **Debounced, validated persistence**: storage is untrusted input; never `JSON.parse` straight into state.
+
+### Edge cases and accessibility
+
+- Dropping on empty space of a list appends (`dropIndex` returns the length); dropping outside any list does nothing.
+- Duplicate or stale ids in storage are rejected by `isBoard`; a deleted card cannot be dragged because it is no longer rendered.
+- Native drag events do not fire from keyboards or screen readers: provide the "Move to…" select (or arrow-key handlers with live-region announcements such as "Moved to Doing, position 2 of 4").
+- Touch: native HTML5 drag and drop is unreliable on mobile; use pointer events or a library for touch support.
+- Multiple tabs: listen to the `storage` event to merge or reload, or accept last-write-wins and say so.
+
+### Follow-ups
+
+- **Reorder lists too?** Add a `moveList` action that mirrors `moveCard` on `listOrder`.
+- **Persist to a server?** Optimistic update, send the action (`moveCard` with ids and index), roll back on failure; store a float or fractional-index "rank" per card so concurrent moves do not renumber the list.
+- **A thousand cards per list?** Virtualise each list; the reducer is unchanged.
+- **Undo?** Keep the previous states or the inverse action; the reducer makes both straightforward.
+- **Real-time collaboration?** Send actions as operations, resolve with server ordering or a CRDT; the pure reducer is what you replay.
+
+> [!WARNING]
+> Common mistakes: nesting cards inside lists so every move rewrites a tree; storing the dragged element or index in persisted state; forgetting `preventDefault()` on `dragover` (the drop never fires); computing the index from the list's `children` including the dragged card (off-by-one when moving down inside the same list); trusting `localStorage` content; and shipping drag and drop with no keyboard alternative.
+
+### References
+
+- [MDN: HTML Drag and Drop API](https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API)
+- [Angular CDK: Drag and drop](https://material.angular.io/cdk/drag-drop/overview)
+- [W3C APG: Keyboard interface and drag-and-drop alternatives (WCAG 2.5.7 Dragging Movements)](https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements.html)
+- [dnd-kit](https://dndkit.com/)
+
+
+## Build progress bars that each fill in n seconds and run one after another when you click quickly
+<!--
+id: progress-bar-queue
+level: senior
+tags: machine coding, progress bar, queue, promises, requestanimationframe, async
+minutes: 30
+-->
+
+> [!PROMPT]
+> A button adds a progress bar that fills from 0 to 100% in `n` seconds. If a bar is already running when the button is clicked again, the new bar waits and starts only after the current one completes.
+>
+> **Requirements**
+> - Bars run strictly one at a time, in click order.
+> - Reusable: the timing and the queue are separate from the UI.
+> - Accessible progress semantics; no leaked timers when a bar is removed or the component unmounts.
+>
+> **Test cases**
+> - Three clicks with `n = 3`: the first bar finishes at 3 s, the second at 6 s, the third at 9 s; the second and third show "Waiting" until their turn.
+> - A click after everything finished starts immediately.
+> - Removing a waiting bar skips it without stalling the queue; unmounting mid-run stops the animation.
+> - A tab hidden for 10 s resumes with the bar at the right place, not 10 s behind.
+
+> [!TLDR]
+> Make two small, framework-free pieces: `animateProgress(duration, onProgress, signal)`, a promise that computes progress from elapsed time with `requestAnimationFrame` (not from frame counts), and `createSerialQueue()`, which chains tasks on a promise tail so the next one starts only when the previous settles, even if it fails or is cancelled. Each bar simply enqueues "animate me" when it mounts and aborts on unmount.
+
+### Clarify first
+
+Ask what a click during a run should do: queue (this question), ignore, restart, or run in parallel. The answer changes the data structure. Also ask whether bars can be cancelled and whether progress must be exact (a fake bar is a timer; a real one reflects work done).
+
+### The two reusable pieces (framework-neutral)
+
+```ts
+/** Resolves when `durationMs` has elapsed; rejects with AbortError if cancelled. */
+export function animateProgress(durationMs: number, onProgress: (ratio: number) => void, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Cancelled', 'AbortError'));
+    const start = performance.now();
+    let frame = 0;
+
+    const tick = (now: number) => {
+      // Derived from the clock, so a throttled background tab catches up instead of falling behind.
+      const ratio = Math.min(Math.max((now - start) / durationMs, 0), 1);
+      onProgress(ratio);
+      if (ratio < 1) frame = requestAnimationFrame(tick);
+      else resolve();
+    };
+    frame = requestAnimationFrame(tick);
+
+    signal?.addEventListener(
+      'abort',
+      () => {
+        cancelAnimationFrame(frame);
+        reject(new DOMException('Cancelled', 'AbortError'));
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Runs tasks one at a time, in the order they were enqueued. */
+export function createSerialQueue() {
+  let tail: Promise<void> = Promise.resolve();
+  return function enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const result = tail.then(task);
+    tail = result.then(
+      () => undefined,
+      () => undefined, // a failed or cancelled task must not block everything behind it
+    );
+    return result;
+  };
+}
+
+export type Enqueue = ReturnType<typeof createSerialQueue>;
+
+export const ignoreAbort = (error: unknown): void => {
+  if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
+};
+```
+
+`tail.then(task)` is the whole queue: promise reactions run in order, so each task begins only after the previous one settled. The same idea with an explicit array (`queue.push`, run the head, shift on completion) is fine too; the promise chain just gets ordering and error propagation for free.
+
+:::react
+### Implementation (React)
+
+Each bar owns its animation state, so a frame update re-renders one bar, not the page. Mount enqueues the work; cleanup aborts it, which also lets the queue skip bars that were removed while waiting.
+
+```tsx
+import { useEffect, useRef, useState } from 'react';
+import { animateProgress, createSerialQueue, ignoreAbort, type Enqueue } from './progress';
+
+type Status = 'waiting' | 'running' | 'done';
+
+function ProgressBar({ seconds, enqueue, label }: { seconds: number; enqueue: Enqueue; label: string }) {
+  const [state, setState] = useState<{ status: Status; ratio: number }>({ status: 'waiting', ratio: 0 });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    enqueue(async () => {
+      controller.signal.throwIfAborted(); // removed while waiting: skip without animating
+      setState({ status: 'running', ratio: 0 });
+      await animateProgress(seconds * 1000, (ratio) => setState({ status: 'running', ratio }), controller.signal);
+      setState({ status: 'done', ratio: 1 });
+    }).catch(ignoreAbort);
+    return () => controller.abort(); // also covers StrictMode's mount, unmount, mount in development
+  }, [seconds, enqueue]);
+
+  const percent = Math.round(state.ratio * 100);
+  return (
+    <div className="bar-row">
+      <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="bar">
+        <div className="fill" style={{ transform: `scaleX(${state.ratio})` }} />
+      </div>
+      <span>{state.status === 'waiting' ? 'Waiting' : state.status === 'done' ? 'Done' : `${percent}%`}</span>
+    </div>
+  );
+}
+
+export function ProgressQueue({ seconds = 3 }: { seconds?: number }) {
+  const [enqueue] = useState(createSerialQueue); // one queue for the lifetime of the component
+  const [ids, setIds] = useState<number[]>([]);
+  const nextId = useRef(1);
+
+  const start = () => {
+    const id = nextId.current++;
+    setIds((list) => [...list, id]);
+  };
+
+  return (
+    <>
+      <button onClick={start}>Start progress ({seconds}s)</button>
+      {ids.map((id) => (
+        <ProgressBar key={id} seconds={seconds} enqueue={enqueue} label={`Progress ${id}`} />
+      ))}
+    </>
+  );
+}
+```
+
+React notes for the interview:
+
+- `scaleX` on a full-width element animates on the compositor; changing `width` forces layout every frame.
+- Never put the queue in a module-level global: two component instances (or two tests) would share it. `useState(createSerialQueue)` creates it once per mount.
+- If the per-frame `setState` bothers you, write `ratio` to a CSS variable through a ref and keep React state to `waiting | running | done`.
+:::
+
+:::angular
+### Implementation (Angular)
+
+The bar component starts its work in `ngOnInit` and cancels on destroy through `DestroyRef`. Signals hold the status and ratio; with `OnPush` only the bar that changed is checked.
+
+```ts
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import { animateProgress, ignoreAbort, type Enqueue } from './progress';
+
+type Status = 'waiting' | 'running' | 'done';
+
+@Component({
+  selector: 'app-progress-bar',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="bar" role="progressbar" [attr.aria-label]="label()" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="percent()">
+      <div class="fill" [style.transform]="'scaleX(' + ratio() + ')'"></div>
+    </div>
+    <span>{{ status() === 'waiting' ? 'Waiting' : status() === 'done' ? 'Done' : percent() + '%' }}</span>
+  `,
+})
+export class ProgressBarComponent implements OnInit {
+  readonly seconds = input.required<number>();
+  readonly enqueue = input.required<Enqueue>();
+  readonly label = input('Progress');
+
+  protected readonly status = signal<Status>('waiting');
+  protected readonly ratio = signal(0);
+  protected readonly percent = computed(() => Math.round(this.ratio() * 100));
+  private readonly controller = new AbortController();
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.controller.abort());
+  }
+
+  ngOnInit(): void {
+    this.enqueue()(async () => {
+      this.controller.signal.throwIfAborted(); // destroyed while waiting: skip
+      this.status.set('running');
+      await animateProgress(this.seconds() * 1000, (ratio) => this.ratio.set(ratio), this.controller.signal);
+      this.status.set('done');
+    }).catch(ignoreAbort);
+  }
+}
+```
+
+```ts
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { createSerialQueue } from './progress';
+import { ProgressBarComponent } from './progress-bar.component';
+
+@Component({
+  selector: 'app-progress-queue',
+  imports: [ProgressBarComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <button (click)="start()">Start progress ({{ seconds() }}s)</button>
+    @for (id of ids(); track id) {
+      <app-progress-bar [seconds]="seconds()" [enqueue]="enqueue" [label]="'Progress ' + id" />
+    }
+  `,
+})
+export class ProgressQueueComponent {
+  readonly seconds = signal(3);
+  protected readonly enqueue = createSerialQueue();
+  protected readonly ids = signal<number[]>([]);
+  private nextId = 1;
+
+  protected start(): void {
+    this.ids.update((list) => [...list, this.nextId++]);
+  }
+}
+```
+
+Angular notes for the interview:
+
+- RxJS is an alternative: `concatMap` over a click stream is a serial queue (`clicks$.pipe(concatMap(() => progress$(seconds)))`) with `takeUntilDestroyed` for cleanup. `exhaustMap` would be the "ignore clicks while running" variant and `switchMap` the "restart" variant; naming that mapping is a strong answer.
+- With zone.js, each `requestAnimationFrame` callback triggers a change detection pass; signals and `OnPush` keep that pass cheap, and zoneless Angular avoids it entirely.
+:::
+
+:::vue
+### Implementation (Vue)
+
+Each bar is a component with its own refs; mount enqueues, unmount aborts.
+
+```vue
+<!-- ProgressBar.vue -->
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { animateProgress, ignoreAbort, type Enqueue } from './progress';
+
+const props = defineProps<{ seconds: number; enqueue: Enqueue; label: string }>();
+
+const status = ref<'waiting' | 'running' | 'done'>('waiting');
+const ratio = ref(0);
+const percent = computed(() => Math.round(ratio.value * 100));
+const controller = new AbortController();
+
+onMounted(() => {
+  props
+    .enqueue(async () => {
+      controller.signal.throwIfAborted(); // unmounted while waiting: skip
+      status.value = 'running';
+      await animateProgress(props.seconds * 1000, (value) => (ratio.value = value), controller.signal);
+      status.value = 'done';
+    })
+    .catch(ignoreAbort);
+});
+onUnmounted(() => controller.abort());
+</script>
+
+<template>
+  <div class="bar-row">
+    <div class="bar" role="progressbar" :aria-label="label" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="percent">
+      <div class="fill" :style="{ transform: `scaleX(${ratio})` }" />
+    </div>
+    <span>{{ status === 'waiting' ? 'Waiting' : status === 'done' ? 'Done' : `${percent}%` }}</span>
+  </div>
+</template>
+```
+
+```vue
+<!-- ProgressQueue.vue -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import { createSerialQueue } from './progress';
+import ProgressBar from './ProgressBar.vue';
+
+const seconds = 3;
+const enqueue = createSerialQueue(); // one queue per component instance
+const ids = ref<number[]>([]);
+let nextId = 1;
+
+function start() {
+  ids.value.push(nextId++);
+}
+</script>
+
+<template>
+  <button @click="start">Start progress ({{ seconds }}s)</button>
+  <ProgressBar v-for="id in ids" :key="id" :seconds="seconds" :enqueue="enqueue" :label="`Progress ${id}`" />
+</template>
+```
+
+Vue notes for the interview:
+
+- `<script setup>` runs once per instance, so `createSerialQueue()` there is per instance, not global.
+- `:key` is what makes "remove a waiting bar" work: the removed component unmounts, its controller aborts, and the queue skips it.
+- A CSS-only version (`transition: transform Ns linear` plus a `transitionend` listener) is legitimate for purely visual bars; the rAF version is better when you need the exact ratio for text, analytics or syncing with other state.
+:::
+
+### Why this design
+
+- **Time-based progress** survives dropped frames and throttled tabs; incrementing by a fixed step per frame does not.
+- **Promise-tail queue** makes the ordering rule one line and keeps the UI free of "is something running?" flags.
+- **Abort support** turns "remove the bar" into a first-class event instead of a leaked `requestAnimationFrame` loop.
+
+### Edge cases and testing
+
+- A task that throws still lets the queue continue (see `tail`); the caller still sees the rejection through `result`.
+- `n = 0` or very small durations: `animateProgress` completes in one frame; guard against negative or `NaN` input at the boundary.
+- Reduced motion: the bar is informational, but avoid easing and do not add decorative animation.
+- Tests: inject the frame function and the clock into `animateProgress` (defaulting to `requestAnimationFrame` and `performance.now`) so a test can advance time deterministically instead of waiting real seconds; assert the order of completion for three queued bars.
+
+### Follow-ups
+
+- **Run up to N at a time?** Replace the serial queue with a concurrency-limited pool (see the task runner question in the async round).
+- **Pause and resume?** Keep elapsed time in the task and restart the frame loop from it; an `AbortSignal` alone cannot resume.
+- **Cancel the running bar and start the next?** Expose the controller per item and abort it; the queue treats an abort like any settled task.
+- **Why not `setInterval`?** It drifts, is throttled in background tabs, and is not aligned with paint; `requestAnimationFrame` is.
+
+> [!WARNING]
+> Common mistakes: a global `isRunning` boolean with a click counter (breaks on removal and errors); updating progress by `+= 1` per interval tick; chaining with `await` inside a click handler so clicks block each other; never cancelling on unmount; and a queue that stops forever after one rejection.
+
+### References
+
+- [MDN: requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)
+- [MDN: ARIA progressbar role](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/progressbar_role)
+- [MDN: AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal)

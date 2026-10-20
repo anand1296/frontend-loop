@@ -67,7 +67,7 @@ function installMock(page: Page, role: 'owner' | 'learner' | 'viewer', uid: stri
 }
 
 const seed = {
-  'learners/u_priya': { version: 1, doneCount: 41, total: 109, byRound: { 'javascript-internals': 8 }, lastActiveAt: 1, lastSectionId: 'machine-coding' },
+  'learners/u_priya': { version: 1, doneCount: 41, total: 112, byRound: { 'javascript-internals': 8 }, lastActiveAt: 1, lastSectionId: 'machine-coding' },
   'config/announcement': { message: 'Mock interview on Saturday.', updatedAt: 5 },
 };
 
