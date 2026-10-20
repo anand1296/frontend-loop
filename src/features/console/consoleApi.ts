@@ -48,6 +48,8 @@ export interface Invite {
   expiresAt: string;
   revokedAt: string | null;
   status: InviteStatus;
+  /** Shareable link; only sent to the owner, and absent for invites created before links were stored. */
+  url?: string;
 }
 
 export interface AdminQuestionMeta {

@@ -476,3 +476,20 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 - (−) The HTML for every framework ships with the answer chunk (answers are loaded per round, and gzip handles the repeated structure well).
 - (−) Search indexes all variants, so a search can match text that is hidden for the current framework; the match opens the question, where the switch is one click.
 - (−) Authors must keep the variants equivalent as questions evolve; the content guide says what stays shared.
+
+
+---
+
+## ADR-030: Keep the raw invite token so the owner can copy a link again
+
+**Status:** Accepted (refines the hash-only storage from the original invite design)
+
+**Context.** Invite tokens were stored only as a hash and the link was returned once. If the owner closed the page before copying it, the link was gone and the invite had to be revoked and recreated.
+
+**Decision.** `invites.token` (nullable, migration 004) stores the raw token next to `token_hash`, which is still used for lookups. `GET /admin/invites` adds a `url` to each row for the owner only; admins never receive it. Invites created before the migration have no token and show "link not stored".
+
+**Alternatives considered.** Encrypting the token with a server secret (more moving parts, and the key lives beside the database anyway); keeping hash-only and asking owners to recreate invites (the complaint that prompted this).
+
+**Consequences.**
+- (+) Links can be copied any time, with no need to recreate them.
+- (−) A database leak would expose unused invite links. Mitigated by expiry (max 90 days), max uses, revocation, and the fact that an invite only grants a learner (or admin) account on a private-by-default site.

@@ -283,6 +283,15 @@ func TestOwnerAndInvitePolicy(t *testing.T) {
 	expect(t, res, 201)
 	res.json(t, &created)
 	token := strings.TrimPrefix(created.URL[strings.Index(created.URL, "?invite="):], "?invite=")
+	// The owner can fetch the link again from the list; an admin cannot.
+	var listed []struct {
+		ID  int64  `json:"id"`
+		URL string `json:"url"`
+	}
+	owner.do("GET", "/api/admin/invites", nil).json(t, &listed)
+	if len(listed) == 0 || listed[0].URL != created.URL {
+		t.Fatalf("owner list should include the link %q, got %+v", created.URL, listed)
+	}
 	var info map[string]any
 	e.anon().do("GET", "/api/invites/"+token, nil).json(t, &info)
 	if info["status"] != "active" || info["role"] != "learner" {
@@ -317,6 +326,15 @@ func TestOwnerAndInvitePolicy(t *testing.T) {
 	}
 	expect(t, admin.do("POST", "/api/admin/invites", map[string]any{"role": "admin"}), 403)
 	expect(t, admin.do("POST", "/api/admin/invites", map[string]any{"role": "learner", "maxUses": 5}), 201)
+	var adminSees []struct {
+		URL string `json:"url"`
+	}
+	admin.do("GET", "/api/admin/invites", nil).json(t, &adminSees)
+	for _, inv := range adminSees {
+		if inv.URL != "" {
+			t.Fatalf("admins must not receive invite links, got %q", inv.URL)
+		}
+	}
 
 	var users struct {
 		Users []struct {

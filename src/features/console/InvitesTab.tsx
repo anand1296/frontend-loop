@@ -70,8 +70,8 @@ function NewInvite({ me, onCreated }: { me: ServerUser; onCreated: () => Promise
       {link ? (
         <div className="invite-result" role="status">
           <p>
-            <strong>Send this link.</strong> It's shown only once; the server keeps just a fingerprint of it. People open it and
-            sign in with GitHub to join.
+            <strong>Send this link.</strong> People open it and sign in with GitHub to join. You can copy it again later from the
+            invite links table.
           </p>
           <div className="copy-link">
             <input readOnly value={link} aria-label="Invite link" onFocus={(e) => e.currentTarget.select()} />
@@ -88,6 +88,23 @@ function NewInvite({ me, onCreated }: { me: ServerUser; onCreated: () => Promise
         </div>
       ) : null}
     </form>
+  );
+}
+
+function CopyInviteLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn btn-quiet"
+      onClick={async () => {
+        const ok = await copyText(url);
+        setCopied(ok);
+        if (ok) window.setTimeout(() => setCopied(false), 2000);
+      }}
+    >
+      <Icon name="link" size={14} /> {copied ? 'Copied' : 'Copy link'}
+    </button>
   );
 }
 
@@ -139,6 +156,10 @@ export function InvitesTab({ me }: { me: ServerUser }) {
                         </td>
                         <td>{formatDate(invite.expiresAt)}</td>
                         <td>
+                          {invite.url && invite.status === 'active' ? <CopyInviteLink url={invite.url} /> : null}
+                          {invite.status === 'active' && !invite.url && me.role === 'owner' ? (
+                            <span className="cell-sub">Link not stored (created before this feature)</span>
+                          ) : null}
                           {invite.status === 'active' ? (
                             <button
                               type="button"

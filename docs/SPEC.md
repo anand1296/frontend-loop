@@ -134,7 +134,7 @@ IDs are stable; tests and ADRs refer to them.
 | --- | --- |
 | FR-20 | Sign in with GitHub (OAuth web flow). Local development and E2E tests may use a password-less developer sign-in, impossible in production. |
 | FR-21 | First sign-in: the owner login always succeeds; otherwise a valid invite is required unless registration is "open". Returning users don't need an invite. |
-| FR-22 | Invite links: role (learner, or admin when created by the owner), max uses (1–1000), expiry (1–90 days), optional note. Shown once; revocable. The invite page explains who invited you and for what role. |
+| FR-22 | Invite links: role (learner, or admin when created by the owner), max uses (1–1000), expiry (1–90 days), optional note. Revocable. The owner (only) can copy the link again from the invite list. The invite page explains who invited you and for what role. |
 | FR-23 | Sessions last 30 days; sign out ends the session and clears this device's local copy of progress. |
 | FR-24 | Content access "members" (**default**: visitors see only a full-page sign-in screen) or "public" (anyone reads; signing in only syncs progress). |
 | FR-28 | Sign-in screen first: on a members-only site a signed-out visitor sees a full-page sign-in screen (no app shell). It shows the invite (who invited you, which role) when opened from an invite link, and sign-in errors inline. |
@@ -425,7 +425,7 @@ erDiagram
 | --- | --- | --- |
 | `users` | `id`, `github_id` (unique, null for dev users), `login` (unique, lower-case), `role` (`owner`/`admin`/`learner`), `disabled`, `invited_by`, `email` (primary verified, private), timestamps | Owner determined by config at each sign-in; a renamed GitHub login frees the old name |
 | `sessions` | `token_hash` (SHA-256, PK), `user_id`, `expires_at`, `last_used_at` | Raw tokens never stored; disabling a user deletes their sessions |
-| `invites` | `token_hash` (unique), `role`, `note`, `max_uses`, `uses`, `expires_at`, `revoked_at`, `created_by` | `uses ≤ max_uses`; consumed inside the sign-in transaction with `SELECT … FOR UPDATE` |
+| `invites` | `token_hash` (unique), `token` (nullable; owner-only display), `role`, `note`, `max_uses`, `uses`, `expires_at`, `revoked_at`, `created_by` | `uses ≤ max_uses`; consumed inside the sign-in transaction with `SELECT … FOR UPDATE` |
 | `sections` | `id` (slug, PK), `title`, `description`, `position`, `published`, `updated_by` | Ids share one namespace with questions (they are URL tokens) |
 | `questions` | `id` (slug, PK), `section_id` (FK, cascade), `position`, `title`, `level`, `tags[]`, `minutes`, `body` (Markdown), `html`, `summary`, `search_text`, `published`, `revision` | `html/summary/search_text` are always derived from `body` at write time; `revision` increments on every save |
 | `question_revisions` | `question_id`, `revision`, `action` (`update`/`delete`), `snapshot` (JSONB), `edited_by`, `edited_at` | Written before every update/delete; no FK so history survives deletion |
@@ -494,7 +494,7 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `GET /admin/users` | `{users:[user + summary + progressUpdatedAt], rounds:[{id,title,total}]}` |
 | `PATCH /admin/users/{id}` `{role?, disabled?}` | Role changes owner-only; see §2.5 |
 | `DELETE /admin/users/{id}` | Remove a user (per §2.5) |
-| `GET /admin/invites` · `POST /admin/invites {role, note, maxUses, expiresInDays}` · `DELETE /admin/invites/{id}` | List (with status), create (returns `url` once), revoke |
+| `GET /admin/invites` · `POST /admin/invites {role, note, maxUses, expiresInDays}` · `DELETE /admin/invites/{id}` | List (with status), create (returns `url`), revoke; the list includes `url` for the owner only |
 | `GET /admin/content` | Full outline including drafts, revisions and timestamps |
 | `POST /admin/sections` `{id, title, description, published?}` | Create a round (409 `id_taken`, 422 problems) |
 | `PATCH /admin/sections/{id}` `{title?, description?, published?}` · `DELETE /admin/sections/{id}` | Edit / delete (questions snapshotted to trash) |
@@ -630,7 +630,7 @@ owner: Admin → Submissions → Review (edit, pick round + id) ──POST …/a
 | Open redirect after sign-in | `next` must match `^#[A-Za-z0-9_-]{0,100}$`; redirects go to the app origin only. |
 | Session theft from the database | Only SHA-256 of 256-bit tokens stored. Cookies `HttpOnly`, `Secure`, `__Host-` prefix on HTTPS. |
 | Privilege escalation | Server-side role checks on every admin endpoint; owner from configuration; owner cannot be changed from the app; admins cannot manage admins; unknown JSON fields rejected. Demotion takes effect on the next request (roles are read per request, not stored in the cookie). |
-| Invite abuse | Hash-only storage, expiry, max uses, revocation, row lock against races (tested with 12 concurrent sign-ins), rate-limited lookups. |
+| Invite abuse | Hash for lookup plus the raw token stored for owner-only re-display (bounded by expiry, max uses and revoke), expiry, max uses, revocation, row lock against races (tested with 12 concurrent sign-ins), rate-limited lookups. |
 | Brute force / abuse | Per-instance fixed-window limits on sign-in start, invite lookup, progress writes and previews (best-effort on serverless; see §18 for Redis). |
 | Injection | Parameterized SQL only; `unnest($1::text[])` for lists. |
 | Oversized input | 1 MiB body limit; field length limits; progress document caps. |
